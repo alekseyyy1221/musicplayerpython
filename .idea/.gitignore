@@ -1,7 +1,7 @@
 # Default ignored files
 /shelf/
 /workspace.xml
-/.venv/
+/.venv
 /misc.xml
 /modules.xml
 /musicplayerpython.iml
