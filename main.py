@@ -1,7 +1,10 @@
 from tkinter import *
 from tkinter import DoubleVar
-from os import mkdir
-# from tkinter.ttk import *
+from os import mkdir,listdir
+import json
+from tkinter.messagebox import showinfo, showerror
+
+import tkinter.ttk as ttk
 
 SCREEN_SIZE = (1000,600)
 INTERVAL = 10
@@ -13,16 +16,80 @@ try:
     mkdir('storage_icon')
 except:
     print("Уже создана")
-# class Albums:
-    # def __init__(self,canvas,name,image,command,coords):
-    #     self.canvas = canvas
-    #     self.album_name = name
-    #     self.album = canvas.create_image(coords[0],coords[1],image=image,anchor=NW)
-    #     canvas.tag_bind(self.album, '<Button-1>', command)
-    # def __init__(self):
-    #     self.albums = {}
-    # def add_album(self,canvas,name,image,command,coords):
-    #     self.albums['name'] =  canvas.create_image(coords[0],coords[1],image=image,anchor=NW)
+print(listdir('icons'))
+
+def format_image(image) -> PhotoImage:
+    if image.width() > 90 and image.height() > 90:
+        image = image.subsample(round(image.width() / 90),round(image.height() / 90))
+    elif image.width() > 90:
+        image = image.subsample(round(image.width() / 90), 1)
+    elif image.height() > 90:
+        image = image.subsample(1, round(image.height() / 90))
+    if image.width() < 90 and image.height() < 90:
+        image = image.zoom(round(90 / image.width()),round(90 / image.height()))
+    elif image.width() < 90:
+        image = image.zoom(90 / round(image.width()), 1)
+    elif image.height() < 90:
+        image = image.zoom(1, 90 / round(image.height()))
+    return image
+
+class Albums:
+    def __init__(self,canvas):
+        self.albums = {}
+        self.canvas = canvas
+
+    def add_album(self,name,path_image):
+        try:
+            mkdir(f'albums/{name}')
+        except FileExistsError:
+            print('Ошибка','Такой альбом уже создан')
+
+        try:
+            with open('storage_icon/path_icon_album.json','r') as file:
+                path_icon = json.load(file)
+                path_icon[f'{name}'] = path_image
+                print(path_icon)
+            with open('storage_icon/path_icon_album.json', 'w') as file:
+                json.dump(path_icon,file,sort_keys=True)
+        except:
+            with open('storage_icon/path_icon_album.json', 'w') as file:
+                json.dump({f'{name}':path_image},file)
+
+    def get_track_list(self,event):
+        print('ура мы получили трек')
+        pass
+
+    def update_list_albums(self):
+        dict_path_icon_album = None
+        # ICONS[f'{self.name}'] = PhotoImage(file="D:/Programs/Загрузки/play.png")
+        # temp_var3 = format_image(temp_var1)
+        # # temp_var2 = ttk.Button(width=10,image=temp_var1,command=self.get_track_list)
+        # # temp_var3 = self.canvas.create_window(20,20,anchor=NW,window=temp_var2)
+        # temp_var2 = self.canvas.create_image(20,20,image=temp_var3,anchor=NW)
+        # print(temp_var1,self.canvas.itemcget(temp_var2,'image'),'<<<<')
+        try:
+            with open('storage_icon/path_icon_album.json') as file:
+                dict_path_icon_album = json.load(file)
+        except:
+            print('нет, альбомов')
+
+        for album in listdir('albums'):
+            coords = ()
+            if len(self.albums) == 0:
+                coords = (40,40)
+            elif len(self.albums) % 2 == 0:
+                coords = (40,40+(120+20)*(len(self.albums)-1))
+            else:
+                coords = (160,40+(120+20)*(len(self.albums)-1))
+
+            ICONS[f'{album}'] = PhotoImage(file=str(dict_path_icon_album[album]))
+            ICONS[f'{album}'] = format_image(ICONS[f'{album}'])
+            print(coords,album,self.albums,self.canvas)
+            self.albums[album] = self.canvas.create_image(coords[0],coords[1],image=ICONS[f'{album}'],anchor=NW)
+            temp = Label(text=f'{album}')
+            temp.config(bg='grey90')
+            self.canvas.create_window(coords[0],coords[1]+ICONS[f'{album}'].height(),anchor=NW,window=temp)
+            self.canvas.tag_bind(self.albums[album],'<Button-1>',self.get_track_list)
 
 
 
@@ -144,7 +211,7 @@ elif ICONS['default'].height() > 90:
 main_canvas = Canvas(bg="gray95", width=SCREEN_SIZE[0], height=(SCREEN_SIZE[1] - 100 - INTERVAL * 2))
 main_canvas.pack(anchor=SW, expand=True, fill=Y)
 album_frame = Frame(main_canvas)
-album_list = Canvas(album_frame,background='gray90',width=int(main_canvas.cget('width'))-600,height=main_canvas.cget('height'))
+album_list = Canvas(album_frame,background='gray90',width=int(main_canvas.cget('width'))-700,height=main_canvas.cget('height'))
 scroll_bar_albums = Scrollbar(album_frame,orient=VERTICAL, command=album_list.yview, width=15,background='gray90')
 scroll_bar_albums_size = 15
 album_list.config(yscrollcommand=scroll_bar_albums.set)
@@ -158,13 +225,21 @@ album_list_id = main_canvas.create_window(0,0,window=album_frame,anchor=NW)
 #     album_list.create_rectangle(0, 0 + i * 100, 100, 100 + i * 100, fill='pink')
 album_list.configure(scrollregion=album_list.bbox(ALL))
 
+b = Albums(album_list)
+b.add_album('test3','icons/next.png')
+b.update_list_albums()
+# c = format_image(PhotoImage(file="C:/Users/bozdy/OneDrive/Pictures/Screenshots/Снимок экрана 2025-05-11 011833.png"))
+# hp = album_list.create_image(40,40,image=c,anchor=NW)
+album_list.configure(scrollregion=album_list.bbox(ALL))
+
+
 
 chosen_music = Canvas(bg="gray90", width=SCREEN_SIZE[0], height=100)
 chosen_music.pack(anchor=S, expand=True,fill='x')
 volume_var = DoubleVar(value=50.0)
 last_volume_var = DoubleVar()
 repeat_var = None
-play_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2,int(chosen_music.cget('height'))// 2)),ICONS['play'],add_album)
+play_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2,int(chosen_music.cget('height'))// 2)),ICONS['play'],get_info)
 next_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+50,int(chosen_music.cget('height'))// 2)),ICONS['next'],get_info)
 prev_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2-55,int(chosen_music.cget('height'))// 2-1)),ICONS['prev'],get_info)
 repeat_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+100,int(chosen_music.cget('height'))// 2+2)),ICONS['repeat_off'],update_repeat)
