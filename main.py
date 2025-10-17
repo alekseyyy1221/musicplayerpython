@@ -1,10 +1,11 @@
 from tkinter import *
 from tkinter import DoubleVar
-from os import mkdir,listdir
+from os import mkdir, listdir, rmdir
 import json
 from tkinter.messagebox import showinfo, showerror
-
 import tkinter.ttk as ttk
+from tkinter.filedialog import askopenfilename
+from PIL import Image,ImageTk
 
 SCREEN_SIZE = (1000,600)
 INTERVAL = 10
@@ -33,16 +34,66 @@ def format_image(image) -> PhotoImage:
         image = image.zoom(1, 90 / round(image.height()))
     return image
 
+
+class AddAlbum:
+    def __init__(self):
+        self.newscreen = Toplevel()
+        self.newscreen.geometry('400x200')
+        self.newscreen.title('Добавление нового альбома')
+        self.newscreen.protocol("WM_DELETE_WINDOW", lambda: self.dismiss())
+        Label(self.newscreen, text='Введите имя альбома:').pack(anchor=NW, padx=10, pady=10)
+        check = (self.newscreen.register(self.check_len_text), "%P")
+        self.album_maybe_name = StringVar()
+        self.album_name_entry = ttk.Entry(self.newscreen, width=50, validate='key', validatecommand=check,
+                                          textvariable=self.album_maybe_name)
+        self.album_name_entry.pack(anchor=NW, padx=10)
+        Label(self.newscreen, text='Выберите иконку альбома:').pack(anchor=NW, padx=10, pady=10)
+        self.Button_add_path = ttk.Button(self.newscreen, text='Выбрать', command=self.get_path)
+        self.Button_add_path.pack(anchor=NW, padx=10)
+        self.icon_maybe_path = ''
+        self.path_label = Label(self.newscreen, text=f'{self.icon_maybe_path}', background='white')
+        self.path_label.pack(anchor=NW, padx=10)
+        self.Button_cancel = ttk.Button(self.newscreen, text='Отмена', command=lambda: self.dismiss)
+        self.Button_cancel.pack(anchor=S, padx=5, side=RIGHT)
+        self.Button_ok = ttk.Button(self.newscreen, text='Принять',command=self.confirm)
+        self.Button_ok.pack(anchor=SE, padx=5, side=RIGHT)
+        self.newscreen.grab_set()
+
+    def get_path(self):
+        self.icon_maybe_path = askopenfilename(filetypes=[('image files', '*.png')])
+        self.path_label['text'] = self.icon_maybe_path
+
+    def confirm(self):
+        data = self.album_maybe_name.get(),self.icon_maybe_path
+        self.dismiss()
+        init_albums.add_album(data[0],data[1])
+
+    def check_len_text(self, text):
+        if len(text) <= 20:
+            return True
+        return False
+
+    def dismiss(self):
+        self.newscreen.grab_release()
+        self.newscreen.destroy()
+
 class Albums:
     def __init__(self,canvas):
         self.albums = {}
         self.canvas = canvas
+        self.albums_image = {}
+        self.albums_coords_size = {}
 
     def add_album(self,name,path_image):
+        if len(f'{name}') > 20:
+            showerror('Ошибка', 'Слишком длинное имя альбома')
+            return
         try:
             mkdir(f'albums/{name}')
         except FileExistsError:
             print('Ошибка','Такой альбом уже создан')
+            showerror('Ошибка','Такой альбом уже создан')
+            return
 
         try:
             with open('storage_icon/path_icon_album.json','r') as file:
@@ -54,10 +105,22 @@ class Albums:
         except:
             with open('storage_icon/path_icon_album.json', 'w') as file:
                 json.dump({f'{name}':path_image},file)
+        self.update_list_albums()
 
-    def get_track_list(self,event):
-        print('ура мы получили трек')
+    def select_album(self,event):
+        print('ура мы получили трек',event)
+        search_coords = []
+        if event.x >= 150:
+            search_coords.append(150)
+        else:
+            search_coords.append(40)
+
+
+        coords =self.albums_coords_size['skelet']
+        s = self.canvas.create_rectangle(coords[0][0]-5,coords[0][1]-5,coords[1][0]+5,coords[1][1]+5,fill='yellow',outline='yellow')
+        self.canvas.tag_lower(s)
         pass
+
 
     def update_list_albums(self):
         dict_path_icon_album = None
@@ -72,24 +135,65 @@ class Albums:
                 dict_path_icon_album = json.load(file)
         except:
             print('нет, альбомов')
-
+        self.canvas.delete('albums')
+        self.albums.clear()
+        self.albums_image.clear()
         for album in listdir('albums'):
+            if not album in dict_path_icon_album.keys():
+                print('Обнаружен невалидный альбом')
+                continue
             coords = ()
+            print(len(self.albums),'<<<<<<')
             if len(self.albums) == 0:
                 coords = (40,40)
+            elif len(self.albums) == 1:
+                coords = (160,40)
             elif len(self.albums) % 2 == 0:
-                coords = (40,40+(120+20)*(len(self.albums)-1))
+                coords = (40,40+(120+20)*((len(self.albums))//2))
             else:
-                coords = (160,40+(120+20)*(len(self.albums)-1))
+                coords = (160,40+(120+20)*((len(self.albums)-1)//2))
 
-            ICONS[f'{album}'] = PhotoImage(file=str(dict_path_icon_album[album]))
-            ICONS[f'{album}'] = format_image(ICONS[f'{album}'])
+            try:
+                self.albums_image[f'{album}'] = PhotoImage(file=str(dict_path_icon_album[album]))
+                self.albums_image[f'{album}'] = format_image(self.albums_image[f'{album}'])
+            except TclError as e:
+                self.albums_image[f'{album}'] = ICONS['default']
+                print('Ошибка, файл не найден')
+
             print(coords,album,self.albums,self.canvas)
-            self.albums[album] = self.canvas.create_image(coords[0],coords[1],image=ICONS[f'{album}'],anchor=NW)
-            temp = Label(text=f'{album}')
+            self.albums[album] = self.canvas.create_image(coords[0],coords[1],image=self.albums_image[f'{album}'],anchor=NW,)
+            self.albums_coords_size[album] = (coords,(self.albums_image[album].width()+coords[0],self.albums_image[album].height()+coords[1]))
+            print(self.albums_coords_size)
+            temp = Label(text=f'{album[:20]+'...' if len(album) > 20 else album}')
             temp.config(bg='grey90')
-            self.canvas.create_window(coords[0],coords[1]+ICONS[f'{album}'].height(),anchor=NW,window=temp)
-            self.canvas.tag_bind(self.albums[album],'<Button-1>',self.get_track_list)
+            self.canvas.create_window(coords[0],coords[1]+self.albums_image[f'{album}'].height(),anchor=NW,window=temp)
+            self.canvas.tag_bind(self.albums[f'{album}'],'<Enter>',self.select_album)
+
+    def del_album(self,name):
+        if not f'{name}' in self.albums.keys():
+            print('KeyError:такого альбома нет')
+            showerror('KeyError','такого альбома нет')
+            return
+        if listdir(f'albums/{name}'):
+            showerror('Ошибка', "Альбом не пуст")
+            return
+        dict_path_icon_album = {}
+        try:
+            with open('storage_icon/path_icon_album.json') as file:
+                dict_path_icon_album = json.load(file)
+            dict_path_icon_album.pop(f'{name}')
+            with open('storage_icon/path_icon_album.json', 'w') as file:
+                json.dump(dict_path_icon_album,file,sort_keys=True)
+                self.albums.pop(f'{name}')
+                self.albums_image.pop(f'{name}')
+                rmdir(f'albums/{name}')
+
+        except:
+            print('нет, альбомов')
+            showerror('Ошибка','Нет, альбомов' )
+            return
+        self.update_list_albums()
+
 
 
 
@@ -130,7 +234,7 @@ def update_volume(value):
     print(volume_button.get_image())
     if float(value) == 0:
         volume_button.update_image(ICONS['volume_off'])
-    elif volume_button.get_image() == 'pyimage20':
+    elif float(value) > 0:
         volume_button.update_image(ICONS['volume'])
     else:
         return
@@ -171,6 +275,19 @@ def volume_off_on(event):
         update_volume(volume_var.get())
 
 
+# def window_add_album():
+#     album_name = None
+#     album_name = new_window_add_album()
+#     if album_name is None:
+#         return
+#     print(album_name, '<<<<<<')
+    # init_albums.add_album(album_name,icon_path)
+
+
+def new_window_add_album():
+    window = AddAlbum()
+
+
 def get_info(event):
     print([main_canvas.winfo_width(), main_canvas.winfo_height()], [screen.winfo_width(), screen.winfo_height()])
 def enter_canvas(event)-> None:
@@ -189,7 +306,7 @@ except:
     print("Файл иконки не найден")
 
 ICONS = {
-    'default':PhotoImage(file='icons/iconPlayer.png'),
+    'default':PhotoImage(file='icons/iconPlayer.png').subsample(10, 10),
     'next':PhotoImage(file='icons/next.png').subsample(10, 10),
     'pause':PhotoImage(file='icons/pause.png').subsample(10,10),
     'play':PhotoImage(file='icons/play.png').subsample(10,10),
@@ -220,16 +337,18 @@ scroll_bar_albums.grid(row=0,column=1,sticky=NS)
 album_frame.grid_rowconfigure(0, weight=1)
 album_frame.grid_columnconfigure(0, weight=1)
 album_list_id = main_canvas.create_window(0,0,window=album_frame,anchor=NW)
+button_add_album = ttk.Button(width=10,text='+',command=new_window_add_album)
+album_list.create_window(10,10,anchor=NW,window=button_add_album)
 
 # for i in range(1,100):
 #     album_list.create_rectangle(0, 0 + i * 100, 100, 100 + i * 100, fill='pink')
 album_list.configure(scrollregion=album_list.bbox(ALL))
 
-b = Albums(album_list)
-b.add_album('test3','icons/next.png')
-b.update_list_albums()
-# c = format_image(PhotoImage(file="C:/Users/bozdy/OneDrive/Pictures/Screenshots/Снимок экрана 2025-05-11 011833.png"))
-# hp = album_list.create_image(40,40,image=c,anchor=NW)
+init_albums = Albums(album_list)
+# b.add_album('test3','icons/next.png')
+init_albums.update_list_albums()
+
+
 album_list.configure(scrollregion=album_list.bbox(ALL))
 
 
