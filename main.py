@@ -1,3 +1,4 @@
+from re import search
 from tkinter import *
 from tkinter import DoubleVar
 from os import mkdir, listdir, rmdir
@@ -42,13 +43,18 @@ print(listdir('icons'))
 
 def get_metadata_icon(path,extansion) -> PhotoImage:
     if extansion == 'mp3':
-        if MP3(path).tags.getall('APIC'):
-            apic = MP3(path).tags.getall('APIC')[0]
-            image = ImageTk.PhotoImage(Image.open(io.BytesIO(apic.data)).resize((90,90)))
-            return image
+        if not MP3(path).tags is None:
+            if MP3(path).tags.getall('APIC'):
+                apic = MP3(path).tags.getall('APIC')[0]
+                image = ImageTk.PhotoImage(Image.open(io.BytesIO(apic.data)).resize((90,90)))
+                return image
+            else:
+                print('Нет обложки')
+                return ICONS['default']
         else:
             print('Нет обложки')
             return ICONS['default']
+
     if extansion == 'flac':
         if flac.FLAC(path).pictures:
             image_raw = flac.FLAC(path).pictures[0].data
@@ -58,10 +64,14 @@ def get_metadata_icon(path,extansion) -> PhotoImage:
             print('Нет обложки')
             return ICONS['default']
     if extansion == 'wav':
-        if wave.WAVE(path).tags.getall('APIC'):
-            apic = wave.WAVE(path).tags.getall('APIC')[0]
-            image = ImageTk.PhotoImage(Image.open(io.BytesIO(apic.data)).resize((90, 90)))
-            return image
+        if not wave.WAVE(path).tags is None:
+            if wave.WAVE(path).tags.getall('APIC'):
+                apic = wave.WAVE(path).tags.getall('APIC')[0]
+                image = ImageTk.PhotoImage(Image.open(io.BytesIO(apic.data)).resize((90, 90)))
+                return image
+            else:
+                print('Нет обложки')
+                return ICONS['default']
         else:
             print('Нет обложки')
             return ICONS['default']
@@ -155,8 +165,8 @@ class AddMusic:
         self.newscreen.grab_set()
         self.check_copy = BooleanVar(value=False)
         ttk.Checkbutton(self.newscreen,text='Удалить исходный файл?',variable=self.check_copy).place(anchor=NW,x=122,y=180)
-        ttk.Button(self.newscreen, width=15, command=self.dismiss, text='Отмена').pack(anchor=SE, padx=10, pady=10,side=RIGHT)
-        ttk.Button(self.newscreen,width=15,command=self.confirm,text='Принять').pack(anchor=SE,padx=10,pady=10,side=RIGHT)
+        ttk.Button(self.newscreen, width=15, command=self.dismiss, text='Отмена').place(anchor=NW, x=500,y=220)
+        ttk.Button(self.newscreen,width=15,command=self.confirm,text='Принять').place(anchor=NW,x=400,y=220)
 
 
     def get_path(self):
@@ -178,7 +188,7 @@ class AddMusic:
         metadata = get_metadata(self.absolut_path,self.extansion)
         if type(metadata) is dict:
             if 'name' in metadata.keys():
-                self.name_track.set(f'{metadata['name']}.{self.extansion}')
+                self.name_track.set(f'{metadata['name']}')
             if 'author' in metadata.keys():
                 self.author_track.set(metadata['author'])
                 print(metadata['author'])
@@ -200,10 +210,20 @@ class AddMusic:
 
 
     def check_len_text(self, text):
-        if len(text) <= 20:
+        if len(text) <= 20 and (not  (text[-1] if len(text) > 0 else [''])  in  ('/',"\\" ,':','?','*','<','>','"','|','#','$','{','}','!','[',']','(',')',"'")):
             return True
         return False
     def confirm(self):
+        self.dismiss()
+        if self.name_track.get() is None or self.name_track.get() == '':
+            print('Пустое имя файла')
+            return
+        if self.absolut_path is None or self.absolut_path == '':
+            print('Пустой путь к файлу')
+            return
+        print(self.name_track.get(),self.extansion,self.absolut_path,self.check_copy.get(),self.changed_icon,self.author_track.get(),self.genre_track.get())
+        init_albums.track_list.add_music(self.name_track.get(),self.extansion,self.absolut_path,self.check_copy.get(),self.changed_icon,self.author_track.get(),self.genre_track.get())
+
         pass
     def dismiss(self):
         self.newscreen.grab_release()
@@ -246,7 +266,7 @@ class AddAlbum:
         init_albums.add_album(data[0],data[1])
 
     def check_len_text(self, text):
-        if len(text) <= 20:
+        if len(text) <= 20 and (not (text[-1] if len(text) > 0 else ['']) in ('/',"\\" ,':','?','*','<','>','"','|','#','$','{','}','!','[',']','(',')',"'")):
             return True
         return False
 
@@ -340,6 +360,8 @@ class Albums:
     def get_track_list(self,event):
         print('получен трек лист')
         self.canvas.delete('opened')
+        music_menu.entryconfig('Добавить трек',state=ACTIVE)
+        music_menu.entryconfig('Удалить выбранный трек', state=ACTIVE)
         search_coords = []
         if event.x >= 150:
             search_coords.append(160)
@@ -411,11 +433,15 @@ class Albums:
             print(coords,album,self.albums,self.canvas)
             self.albums[album] = self.canvas.create_image(coords[0],coords[1],image=self.albums_image[f'{album}'],anchor=NW,)
             self.albums_coords_size[coords] = album
-            print(self.albums_coords_size)
+            print(self.albums_image[album],album,'<<<')
             temp = Label(text=f'{album[:20]+'...' if len(album) > 20 else album}')
             temp.config(bg='grey90')
             self.canvas.create_window(coords[0],coords[1]+self.albums_image[f'{album}'].height(),anchor=NW,window=temp,tags=[f'{album}',f'label'])
-            print(self.albums,'<><><><><>')
+            if not self.open_album is None:
+                for key in self.albums_coords_size:
+                    print(key,self.albums_coords_size[key], "<<<<<<<<<><><><><")
+                    if self.open_album == self.albums_coords_size[key]:
+                        self.canvas.coords('opened',key[0]-15,key[1]-15,key[0]+105,key[1]+105)
             self.canvas.tag_bind(self.albums[f'{album}'],'<Button-1>',self.select_album)
             self.canvas.tag_bind(self.albums[f'{album}'], '<Button-3>', self.unselect_album)
             self.canvas.tag_bind(self.albums[f'{album}'], '<Double-Button-1>', self.get_track_list)
@@ -426,10 +452,10 @@ class Albums:
             showerror('KeyError','такого альбома нет')
             return
         if listdir(f'albums/{name}'):
-            showerror('Ошибка', "Альбом не пуст")
+            showerror('Ошибка', "Для удаления альбом должен быть пуст")
             return
         if self.open_album == name:
-            showerror('Ошибка', "НЕвозможно удалить открытый альбом")
+            showerror('Ошибка', "Невозможно удалить открытый альбом")
             return
         dict_path_icon_album = {}
         try:
@@ -460,6 +486,9 @@ class MusicList:
         self.musiclist = {}
         self.icon_list = {}
         self.icon_list_id = {}
+        self.selected_music = None
+        self.chosen_music = None
+        self.canvas.bind('<Button-3>', self.unselected_music)
         print(self.musiclist)
 
     def add_music(self,name,extensions,absolute_path,copying,new_icon,author,genre):
@@ -482,17 +511,67 @@ class MusicList:
                 with open(new_icon,'rb') as f:
                     data = f.read()
                 temp['APIC'] = APIC(encoding=3, mime='image/png', data=bytes(data))
-                temp['TIT2'] = TIT2(encoding=3,text=[f'{name}'])
-                temp['TPE1'] = TPE1(encoding=3,text=[f'{author}'])
-                temp['TCON'] = TCON(encoding=3,text=[f'{genre}'])
+            temp['TIT2'] = TIT2(encoding=3,text=[f'{name}'])
+            temp['TPE1'] = TPE1(encoding=3,text=[f'{author}'])
+            temp['TCON'] = TCON(encoding=3,text=[f'{genre}'])
 
-
-
-
-
-
-
+        if extensions == 'flac':
+            temp = flac.FLAC(f'albums/{init_albums.open_album}/{name}.{extensions}')
+            if not (new_icon is None):
+                temp.clear_pictures()
+                new_pic = flac.Picture()
+                with open(new_icon,'rb') as f:
+                    new_pic.data = f.read()
+                    new_pic.mime = 'image/png'
+                    new_pic.type = 3
+                temp.add_picture(new_pic)
+                temp['title'] = [f'{name}']
+                temp['artist'] = [f'{author}']
+                temp['genre'] = [f'{genre}']
+                temp.save()
+        if extensions == 'wav':
+            temp = wave.WAVE(f'albums/{init_albums.open_album}/{name}.{extensions}')
+            if not (new_icon is None):
+                print(temp.keys())
+                if 'APIC:' in temp.keys():
+                    del temp['APIC:']
+                with open(new_icon, 'rb') as f:
+                    data = f.read()
+                temp['APIC'] = APIC(encoding=3, mime='image/png', data=bytes(data))
+            temp['TIT2'] = TIT2(encoding=3, text=[f'{name}'])
+            temp['TPE1'] = TPE1(encoding=3, text=[f'{author}'])
+            temp['TCON'] = TCON(encoding=3, text=[f'{genre}'])
+            temp.save()
+        self.update_musiclist()
         # self.musiclist[f'{name}.{extensions}'] = f'albums/{init_albums.open_album}/{name}.{extensions}'
+
+
+    def del_music(self):
+        pass
+
+    def unselected_music(self,event=None):
+        if self.selected_music is None:
+            return
+        self.musiclist[f'{self.selected_music}'].config(bg='grey90')
+        self.selected_music = None
+
+    def select_music(self,event,music):
+        self.unselected_music()
+        search_coords = []
+        print(event,music,'xxx')
+        self.musiclist[f'{music}'].config(bg='green')
+        self.selected_music = f'{music}'
+
+
+    def func_constr_for_select(self,music):
+         return lambda event:self.select_music(event,music)
+
+    def func_constr_for_unselect(self,music):
+         return lambda event:self.select_music(event,music)
+
+    def chose_music(self):
+        print('chosen music')
+        pass
 
     def update_musiclist(self):
         self.canvas.delete('music_main_canvas')
@@ -511,7 +590,7 @@ class MusicList:
             if len(self.musiclist) == 0:
                 coords = (30,30)
             else:
-                coords = (30+100*len(self.musiclist),20+100*len(self.musiclist))
+                coords = (30,30+120*len(self.musiclist))
             for i in range(len(music) - 1, 0, -1):
                 if music[i] == '.':
                     break
@@ -526,6 +605,8 @@ class MusicList:
             self.musiclist[f'{music}'].create_text(100,10,text=f'{metadata['name']}',anchor=NW,font='arial 20')
             self.musiclist[f'{music}'].create_text(100,40, text=f'{metadata['author']}', anchor=NW,font='arial 15')
             self.musiclist[f'{music}'].create_text(100, 65, text=f'{metadata['genre']}', anchor=NW, font='arial 15')
+            self.musiclist[f'{music}'].bind('<Button-1>',self.func_constr_for_select(f'{music}'))
+            self.musiclist[f'{music}'].bind('<Button-3>', self.unselected_music)
             print(self.icon_list)
             print(self.icon_list_id)
 
@@ -559,6 +640,8 @@ def update_size(event):
     main_canvas.config(width=new_screen_size[0], height=(new_screen_size[1] - 100 - INTERVAL * 2))
     album_list.config(height=main_canvas.winfo_height())
     music_list.config(width=(main_canvas.winfo_width() - 335), height=main_canvas.winfo_height())
+    # album_list.configure(scrollregion=album_list.bbox(ALL))
+    # music_list.configure(scrollregion=music_list.bbox(ALL))
 
 
 def update_place_widgets(event):
@@ -630,6 +713,8 @@ def delete_album():
     init_albums.del_album(init_albums.selected_album)
 
 def new_window_add_music():
+    if init_albums.open_album is None:
+        return
     window = AddMusic()
 
 def delete_music():
@@ -684,8 +769,8 @@ album_menu = Menu(bg='grey90',tearoff=0)
 album_menu.add_command(label='Добавить альбом',command=new_window_add_album)
 album_menu.add_command(label='Удалить выбранный альбом',command=delete_album)
 music_menu = Menu(bg='grey90',tearoff=0)
-music_menu.add_command(label='Добавить трек',command=new_window_add_music)
-music_menu.add_command(label='Удалить выбранный трек',command=delete_music)
+music_menu.add_command(label='Добавить трек',command=new_window_add_music,state=DISABLED)
+music_menu.add_command(label='Удалить выбранный трек',command=delete_music,state=DISABLED)
 menu.add_cascade(label='album list',menu=album_menu)
 menu.add_cascade(label='music list',menu=music_menu)
 screen.config(menu=menu)
