@@ -188,12 +188,12 @@ class AddMusic:
         metadata = get_metadata(self.absolut_path,self.extansion)
         if type(metadata) is dict:
             if 'name' in metadata.keys():
-                self.name_track.set(f'{metadata['name']}')
+                self.name_track.set(f'{metadata['name']}' if len(f'{metadata['name']}') < 20 else f'{metadata['name']}'[:20])
             if 'author' in metadata.keys():
-                self.author_track.set(metadata['author'])
+                self.author_track.set(metadata['author'] if len(f'{metadata['author']}') < 20 else f'{metadata['author']}'[:20])
                 print(metadata['author'])
             if 'genre' in metadata.keys():
-                self.genre_track.set(metadata['genre'])
+                self.genre_track.set(metadata['genre'] if len(f'{metadata['genre']}') < 20 else f'{metadata['author']}'[:20])
                 print(metadata['genre'])
 
     def change_icon(self):
@@ -213,6 +213,7 @@ class AddMusic:
         if len(text) <= 20 and (not  (text[-1] if len(text) > 0 else [''])  in  ('/',"\\" ,':','?','*','<','>','"','|','#','$','{','}','!','[',']','(',')',"'")):
             return True
         return False
+
     def confirm(self):
         self.dismiss()
         if self.name_track.get() is None or self.name_track.get() == '':
@@ -487,7 +488,7 @@ class MusicList:
         self.icon_list = {}
         self.icon_list_id = {}
         self.selected_music = None
-        self.chosen_music = None
+        self.chosen_music_in_list = None
         self.canvas.bind('<Button-3>', self.unselected_music)
         print(self.musiclist)
 
@@ -557,27 +558,40 @@ class MusicList:
 
     def select_music(self,event,music):
         self.unselected_music()
-        search_coords = []
         print(event,music,'xxx')
-        self.musiclist[f'{music}'].config(bg='green')
+        self.musiclist[f'{music}'].config(bg='lightgreen')
         self.selected_music = f'{music}'
 
 
     def func_constr_for_select(self,music):
          return lambda event:self.select_music(event,music)
 
-    def func_constr_for_unselect(self,music):
-         return lambda event:self.select_music(event,music)
+    def func_constr_for_chose(self,music):
+         return lambda event:self.chose_music(event,music)
 
-    def chose_music(self):
-        print('chosen music')
-        pass
+    def chose_music(self,_,music):
+        self.canvas.delete('opened')
+        self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x()-320,self.musiclist[f'{music}'].winfo_y(),
+                                     self.musiclist[f'{music}'].winfo_x()-315,self.musiclist[f'{music}'].winfo_y()+102,
+                                     fill='red',tags='opened')
+        self.chosen_music_in_list = {f'{init_albums.open_album}':f'{music}'}
+        print('chosen music: ',self.chosen_music_in_list)
+
+    def safe_chose_music(self,music):
+        self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x() - 320,
+                                     self.musiclist[f'{music}'].winfo_y(),
+                                     self.musiclist[f'{music}'].winfo_x() - 315,
+                                     self.musiclist[f'{music}'].winfo_y() + 102,
+                                     fill='red', tags='opened')
 
     def update_musiclist(self):
         self.canvas.delete('music_main_canvas')
+        self.canvas.delete('opened')
+        self.unselected_music()
         self.musiclist.clear()
         self.icon_list.clear()
         self.icon_list_id.clear()
+        music_list.configure(scrollregion=music_list.bbox(ALL))
         path_album = f'albums/{init_albums.open_album}'
         try:
             list_music = listdir(path_album)
@@ -600,15 +614,41 @@ class MusicList:
             print(metadata)
             self.icon_list[f'{music}'] =  get_metadata_icon(f'{path_album}/{music}',extension)
             self.musiclist[f'{music}'] = Canvas(width=int(self.canvas.cget('width'))-30,height=100,bg='grey90')
-            self.canvas.create_window(coords[0],coords[1], window=self.musiclist[f'{music}'],tags='music_main_canvas',anchor=NW)
+            temp = self.canvas.create_window(coords[0],coords[1], window=self.musiclist[f'{music}'],tags='music_main_canvas',anchor=NW)
+            self.canvas.tag_lower(temp)
+            music_frame.lower()
             self.icon_list_id[f'{music}'] =  self.musiclist[f'{music}'].create_image(5,5,image=self.icon_list[f'{music}'],anchor=NW)
             self.musiclist[f'{music}'].create_text(100,10,text=f'{metadata['name']}',anchor=NW,font='arial 20')
             self.musiclist[f'{music}'].create_text(100,40, text=f'{metadata['author']}', anchor=NW,font='arial 15')
             self.musiclist[f'{music}'].create_text(100, 65, text=f'{metadata['genre']}', anchor=NW, font='arial 15')
             self.musiclist[f'{music}'].bind('<Button-1>',self.func_constr_for_select(f'{music}'))
             self.musiclist[f'{music}'].bind('<Button-3>', self.unselected_music)
+            self.musiclist[f'{music}'].bind('<Double-Button-1>', self.func_constr_for_chose(f'{music}'))
+            self.musiclist[f'{music}'].lower(ALL)
+            chosen_music.lift(ALL)
             print(self.icon_list)
             print(self.icon_list_id)
+        # self.canvas.tag_lower('music_main_canvas')
+        # self.canvas.lift('music_main_canvas')
+        # music_list.configure(scrollregion=(self.canvas.winfo_x(),self.canvas.winfo_y(),self.canvas.winfo_x()+self.canvas.winfo_width(),self.canvas.winfo_y()+self.canvas.winfo_height()))
+        music_list.configure(scrollregion=music_list.bbox('music_main_canvas'))
+        self.canvas.lower(ALL)
+        music_frame.lower()
+        chosen_music.lift(ALL)
+        if not self.chosen_music_in_list is None:
+            if list(self.chosen_music_in_list.keys())[0] == init_albums.open_album:
+                print('Music_list> ' ,self.musiclist)
+                # print(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-320,self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].winfo_y(),
+                #                              self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-315,self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].winfo_y()+100)
+                print(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-50),int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height'))+40,
+                                             int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height'))+160)
+                print('listdir> ',list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'))
+                self.canvas.create_rectangle(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-55),30+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
+                                             int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),132+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
+                                             fill='red', tags='opened')
+                # self.safe_chose_music(f'{list(self.chosen_music_in_list.values())[0]}')
+
+
 
 
 
@@ -651,6 +691,8 @@ def update_place_widgets(event):
     repeat_button.update_coords((chosen_music.winfo_width() // 2 +100, chosen_music.winfo_height() // 2 +2))
     volume_button.update_coords((chosen_music.winfo_width()-180, chosen_music.winfo_height() // 2 +2))
     chosen_music.coords(volume_scale_id, chosen_music.winfo_width() -100, chosen_music.winfo_height() // 2-6)
+    chosen_music.itemconfig(progress_track_bar_id,width=chosen_music.winfo_width() -120)
+    init_albums.track_list.canvas.itemconfig('music_main_canvas', width=main_canvas.winfo_width() - 362)
 
 def update_volume(value):
     print(volume_button.get_image())
@@ -720,10 +762,17 @@ def new_window_add_music():
 def delete_music():
     pass
 
+def seek_position_in_progress_bar(event):
+    percent_progress = (event.x / int(progress_track_bar.winfo_width()))*100
+    if percent_progress < 0 or percent_progress > 100:
+        return
+    progress_track_bar.config(value=percent_progress)
 
 
 def get_info(event):
     print([main_canvas.winfo_width(), main_canvas.winfo_height()], [screen.winfo_width(), screen.winfo_height()])
+    print(event)
+
 def enter_canvas(event)-> None:
     print(event.x,event.y)
 
@@ -792,13 +841,14 @@ scroll_bar_music.grid(row=0, column=3, sticky=NS)
 music_frame.grid_rowconfigure(2, weight=1)
 music_frame.grid_columnconfigure(2, weight=1)
 music_list_id = main_canvas.create_window(315, 0, window=music_frame, anchor=NW)
-music_list.configure(scrollregion=music_list.bbox(ALL))
+# music_list.configure(scrollregion=music_list.bbox(ALL))
 # test_button = ttk.Button(width=15,command=test_def)
 # music_list.create_window(100,100,window=test_button,anchor=NW)
 
 init_albums = Albums(album_list,music_list)
 init_albums.update_list_albums()
 album_list.configure(scrollregion=album_list.bbox(ALL))
+music_list.configure(scrollregion=music_list.bbox(ALL))
 
 
 
@@ -814,17 +864,32 @@ repeat_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+1
 volume_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))-180,int(chosen_music.cget('height'))// 2+2)),ICONS['volume'],volume_off_on)
 volume_scale = Scale(orient=HORIZONTAL,length=100,from_=0,to=100,bg='grey90',highlightbackground='grey90',variable=volume_var,command=update_volume)
 volume_scale_id = chosen_music.create_window(int(chosen_music.cget("width"))-100,int(chosen_music.cget('height'))// 2-6,anchor=CENTER,window=volume_scale)
-try:
-    ICONS['icon_chosen_music'] = PhotoImage(file="C:/Users/bozdy/OneDrive/Pictures/Screenshots/Снимок экрана 2025-06-01 123922.png")
-    if ICONS['icon_chosen_music'].width() > 90 and ICONS['icon_chosen_music'].height() > 90:
-        ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(round(ICONS['icon_chosen_music'].width()/90),round(ICONS['icon_chosen_music'].height()/90))
-    elif ICONS['icon_chosen_music'].width() > 90:
-        ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(round(ICONS['icon_chosen_music'].width()/90),1)
-    elif ICONS['icon_chosen_music'].height() > 90:
-        ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(1,round(ICONS['icon_chosen_music'].height()/90))
-    icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['icon_chosen_music'], anchor=CENTER)
-except:
-    icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['default'], anchor=CENTER)
+# try:
+#     ICONS['icon_chosen_music'] = PhotoImage(file="C:/Users/bozdy/OneDrive/Pictures/Screenshots/Снимок экрана 2025-06-01 123922.png")
+#     if ICONS['icon_chosen_music'].width() > 90 and ICONS['icon_chosen_music'].height() > 90:
+#         ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(round(ICONS['icon_chosen_music'].width()/90),round(ICONS['icon_chosen_music'].height()/90))
+#     elif ICONS['icon_chosen_music'].width() > 90:
+#         ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(round(ICONS['icon_chosen_music'].width()/90),1)
+#     elif ICONS['icon_chosen_music'].height() > 90:
+#         ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(1,round(ICONS['icon_chosen_music'].height()/90))
+#     icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['icon_chosen_music'], anchor=CENTER)
+# except:
+icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['default'], anchor=CENTER)
+music_name_label = chosen_music.create_text(100,25,text='Название трека',anchor=NW,font='arial 20')
+album_name_label = chosen_music.create_text(100,55,text='Альбом',anchor=NW,font='arial 15')
+music_author_label = chosen_music.create_text(100,75,text='Автор',anchor=NW,font='arial 15')
+progress_track_bar_var = DoubleVar()
+# style_for_progress_bar = ttk.Style()
+# style_for_progress_bar.theme_use('classic')
+# style_for_progress_bar.configure(f"Custom.classic.Horizontal.TProgressbar",
+#                                 background='red',
+#                                 troughcolor='lightgray')
+progress_track_bar = ttk.Progressbar(orient=HORIZONTAL,value=progress_track_bar_var.get())
+progress_track_bar.bind('<Double-Button-1>',seek_position_in_progress_bar)
+progress_track_bar.bind('<ButtonPress-1>',lambda event: progress_track_bar.bind('<Motion>',seek_position_in_progress_bar))
+progress_track_bar.bind('<ButtonRelease-1>',lambda event: progress_track_bar.unbind('<Motion>'))
+progress_track_bar_id =  chosen_music.create_window(100,5,anchor=NW,window=progress_track_bar,width=int(chosen_music.cget('width'))-120)
+
 
 main_canvas.bind("<Configure>", update_size)
 chosen_music.bind("<Configure>",update_place_widgets)
