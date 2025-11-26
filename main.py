@@ -1,7 +1,8 @@
+from asyncio import ALL_COMPLETED
 from re import search
 from tkinter import *
 from tkinter import DoubleVar
-from os import mkdir, listdir, rmdir
+from os import mkdir, listdir, rmdir,remove
 import json
 from tkinter.messagebox import showinfo, showerror
 import tkinter.ttk as ttk
@@ -181,7 +182,8 @@ class AddMusic:
                 break
             self.extansion += self.absolut_path[i]
         self.extansion = self.extansion[::-1]
-        self.path_label['text'] = self.absolut_path
+        self.path_label['text'] = self.absolut_path if len(self.absolut_path) <= 65 \
+            else '...'+self.absolut_path[::-1][:65][::-1]
         self.icon_music = get_metadata_icon(self.absolut_path,self.extansion)
         print(self.icon_music.width(),self.icon_music.height())
         self.image_canvas.create_image(5,5,image=self.icon_music,anchor=NW,tags = 'image')
@@ -208,8 +210,8 @@ class AddMusic:
         except FileNotFoundError:
             print('Файл ненайден')
 
-
-    def check_len_text(self, text):
+    @staticmethod
+    def check_len_text(text):
         if len(text) <= 20 and (not  (text[-1] if len(text) > 0 else [''])  in  ('/',"\\" ,':','?','*','<','>','"','|','#','$','{','}','!','[',']','(',')',"'")):
             return True
         return False
@@ -217,9 +219,11 @@ class AddMusic:
     def confirm(self):
         self.dismiss()
         if self.name_track.get() is None or self.name_track.get() == '':
+            showerror('Ошибка',"Имя трека не может быть пустым")
             print('Пустое имя файла')
             return
         if self.absolut_path is None or self.absolut_path == '':
+            showerror('Ошибка', "Необходимо выбрать файл")
             print('Пустой путь к файлу')
             return
         print(self.name_track.get(),self.extansion,self.absolut_path,self.check_copy.get(),self.changed_icon,self.author_track.get(),self.genre_track.get())
@@ -266,7 +270,8 @@ class AddAlbum:
         self.dismiss()
         init_albums.add_album(data[0],data[1])
 
-    def check_len_text(self, text):
+    @staticmethod
+    def check_len_text(text):
         if len(text) <= 20 and (not (text[-1] if len(text) > 0 else ['']) in ('/',"\\" ,':','?','*','<','>','"','|','#','$','{','}','!','[',']','(',')',"'")):
             return True
         return False
@@ -317,40 +322,46 @@ class Albums:
         self.selected_album = None
         self.canvas.delete('select')
 
-    def select_album(self,event):
+    def alb_func_constr_for_select(self,album):
+        return lambda event: self.select_album(event,album)
+
+    def alb_func_constr_for_get_track(self,album):
+        return lambda event: self.get_track_list(event,album)
+
+    def select_album(self,_,album):
         self.unselect_album('NonEvent')
-        search_coords = []
-        if len(self.albums_coords_size) != 1:
-            if event.x >= 150:
-                search_coords.append(160)
-            else:
-                search_coords.append(40)
-            coff = round(event.y / 140)
-            if coff < 1:
-                search_coords.append(40)
-            else:
-                row_list = []
-                for row in range(len(self.albums_coords_size)):
-                    row_list.append((30+140*row,130+140*row))
-                row_album = None
-                for row in range(len(row_list)):
-                    if event.y == row_list[row][0]:
-                        row_album = row_list[row]
-                        break
-                    elif event.y < row_list[row][0]:
-                        row_album = row_list[row-1]
-                        break
-                if row_album is None:
-                    return
-                search_coords.append(row_album[0]+10)
-        else:
-            search_coords.append(40)
-            search_coords.append(40)
-        search_coords_tuple = (search_coords[0],search_coords[1])
-        self.selected_album = self.albums_coords_size[search_coords_tuple]
-        select_rectangle = self.canvas.create_rectangle(search_coords_tuple[0]-10,search_coords_tuple[1]-10,
-                                                        search_coords_tuple[0]+100,search_coords_tuple[1]+100,
-                                                        fill='yellow',outline='yellow',tags='select')
+        # search_coords = []
+        # if len(self.albums_coords_size) != 1:
+        #     if event.x >= 150:
+        #         search_coords.append(160)
+        #     else:
+        #         search_coords.append(40)
+        #     coff = round(event.y / 140)
+        #     if coff < 1:
+        #         search_coords.append(40)
+        #     else:
+        #         row_list = []
+        #         for row in range(len(self.albums_coords_size)):
+        #             row_list.append((30+140*row,130+140*row))
+        #         row_album = None
+        #         for row in range(len(row_list)):
+        #             if event.y == row_list[row][0]:
+        #                 row_album = row_list[row]
+        #                 break
+        #             elif event.y < row_list[row][0]:
+        #                 row_album = row_list[row-1]
+        #                 break
+        #         if row_album is None:
+        #             return
+        #         search_coords.append(row_album[0]+10)
+        # else:
+        #     search_coords.append(40)
+        #     search_coords.append(40)
+        coords_tuple = (self.canvas.coords(self.albums[album]))
+        self.selected_album = album
+        select_rectangle = self.canvas.create_rectangle(coords_tuple[0]-10,coords_tuple[1]-10,
+                                                        coords_tuple[0]+100,coords_tuple[1]+100,
+                                                        fill='',outline='yellow',dash=(4,2) ,tags='select',width=3)
         if self.open_album is None:
             self.canvas.tag_lower(select_rectangle)
         else:
@@ -358,39 +369,39 @@ class Albums:
             self.canvas.tag_raise(select_rectangle,'opened')
 
 
-    def get_track_list(self,event):
+    def get_track_list(self,_,album):
         print('получен трек лист')
         self.canvas.delete('opened')
         music_menu.entryconfig('Добавить трек',state=ACTIVE)
         music_menu.entryconfig('Удалить выбранный трек', state=ACTIVE)
-        search_coords = []
-        if event.x >= 150:
-            search_coords.append(160)
-        else:
-            search_coords.append(40)
-        coff = round(event.y / 140)
-        if coff < 1:
-            search_coords.append(40)
-        else:
-            row_list = []
-            for row in range(len(self.albums_coords_size)):
-                row_list.append((30 + 140 * row, 130 + 140 * row))
-            row_album = None
-            for row in range(len(row_list)):
-                if event.y == row_list[row][0]:
-                    row_album = row_list[row]
-                    break
-                elif event.y < row_list[row][0]:
-                    row_album = row_list[row - 1]
-                    break
-            if row_album is None:
-                return
-            search_coords.append(row_album[0] + 10)
-        search_coords_tuple = (search_coords[0], search_coords[1])
-        self.open_album = self.albums_coords_size[search_coords_tuple]
-        open_rectangle = self.canvas.create_rectangle(search_coords_tuple[0] - 15, search_coords_tuple[1] - 15,
-                                                        search_coords_tuple[0] + 105, search_coords_tuple[1] + 105,
-                                                        fill='purple', outline='purple', tags='opened')
+        # search_coords = []
+        # if event.x >= 150:
+        #     search_coords.append(160)
+        # else:
+        #     search_coords.append(40)
+        # coff = round(event.y / 140)
+        # if coff < 1:
+        #     search_coords.append(40)
+        # else:
+        #     row_list = []
+        #     for row in range(len(self.albums_coords_size)):
+        #         row_list.append((30 + 140 * row, 130 + 140 * row))
+        #     row_album = None
+        #     for row in range(len(row_list)):
+        #         if event.y == row_list[row][0]:
+        #             row_album = row_list[row]
+        #             break
+        #         elif event.y < row_list[row][0]:
+        #             row_album = row_list[row - 1]
+        #             break
+        #     if row_album is None:
+        #         return
+        #     search_coords.append(row_album[0] + 10)
+        search_coords_tuple = (self.canvas.coords(self.albums[album]))
+        self.open_album = album
+        open_rectangle = self.canvas.create_rectangle(search_coords_tuple[0] - 5, search_coords_tuple[1] - 5,
+                                                        search_coords_tuple[0] + 95, search_coords_tuple[1] + 95,
+                                                        fill='', outline='purple',width=3, tags='opened')
         if self.selected_album is None:
             self.canvas.tag_lower(open_rectangle)
         else:
@@ -435,7 +446,7 @@ class Albums:
             self.albums[album] = self.canvas.create_image(coords[0],coords[1],image=self.albums_image[f'{album}'],anchor=NW,)
             self.albums_coords_size[coords] = album
             print(self.albums_image[album],album,'<<<')
-            temp = Label(text=f'{album[:20]+'...' if len(album) > 20 else album}')
+            temp = Label(self.canvas,text=f'{album[:20]+'...' if len(album) > 20 else album}')
             temp.config(bg='grey90')
             self.canvas.create_window(coords[0],coords[1]+self.albums_image[f'{album}'].height(),anchor=NW,window=temp,tags=[f'{album}',f'label'])
             if not self.open_album is None:
@@ -443,22 +454,32 @@ class Albums:
                     print(key,self.albums_coords_size[key], "<<<<<<<<<><><><><")
                     if self.open_album == self.albums_coords_size[key]:
                         self.canvas.coords('opened',key[0]-15,key[1]-15,key[0]+105,key[1]+105)
-            self.canvas.tag_bind(self.albums[f'{album}'],'<Button-1>',self.select_album)
+            self.canvas.tag_bind(self.albums[f'{album}'],'<Button-1>',self.alb_func_constr_for_select(album))
             self.canvas.tag_bind(self.albums[f'{album}'], '<Button-3>', self.unselect_album)
-            self.canvas.tag_bind(self.albums[f'{album}'], '<Double-Button-1>', self.get_track_list)
+            self.canvas.tag_bind(self.albums[f'{album}'], '<Double-Button-1>', self.alb_func_constr_for_get_track(album))
+            self.canvas.update_idletasks()
+            self.canvas.configure(scrollregion=album_list.bbox(ALL))
 
     def del_album(self,name):
+        if not self.albums:
+            showerror("Ошибка", "Нет альбомов для удаления.")
+            return
+
         if not f'{name}' in self.albums.keys():
             print('KeyError:такого альбома нет')
-            showerror('KeyError','такого альбома нет')
+            showerror('KeyError','Такого альбома несуществует или альбом не выбран')
             return
+
         if listdir(f'albums/{name}'):
             showerror('Ошибка', "Для удаления альбом должен быть пуст")
             return
+
         if self.open_album == name:
             showerror('Ошибка', "Невозможно удалить открытый альбом")
             return
+
         dict_path_icon_album = {}
+
         try:
             with open('storage_icon/path_icon_album.json') as file:
                 dict_path_icon_album = json.load(file)
@@ -468,18 +489,21 @@ class Albums:
                 self.canvas.tag_unbind(self.albums[f'{name}'],'<Button-1>')
                 self.canvas.tag_unbind(self.albums[f'{name}'], '<Button-3>')
                 self.canvas.tag_unbind(self.albums[f'{name}'], '<Double-Button-1>')
+                self.unselect_album()
                 self.albums.pop(f'{name}')
                 self.albums_image.pop(f'{name}')
                 self.canvas.delete(f'{name}')
                 self.albums_coords_size.clear()
-                self.unselect_album()
                 rmdir(f'albums/{name}')
+                self.canvas.update_idletasks()
 
-        except:
-            print('нет, альбомов')
+        except Exception as e:
+            print('нет, альбомов',e)
             showerror('Ошибка','Нет, альбомов' )
             return
         self.update_list_albums()
+
+
 
 class MusicList:
     def __init__(self,canvas):
@@ -515,6 +539,7 @@ class MusicList:
             temp['TIT2'] = TIT2(encoding=3,text=[f'{name}'])
             temp['TPE1'] = TPE1(encoding=3,text=[f'{author}'])
             temp['TCON'] = TCON(encoding=3,text=[f'{genre}'])
+            temp.save()
 
         if extensions == 'flac':
             temp = flac.FLAC(f'albums/{init_albums.open_album}/{name}.{extensions}')
@@ -548,7 +573,21 @@ class MusicList:
 
 
     def del_music(self):
-        pass
+        if self.selected_music is None:
+            return
+
+        if (not self.chosen_music_in_list is None) and (self.selected_music == list(self.chosen_music_in_list.values())[0]) and list(self.chosen_music_in_list.keys())[0] == init_albums.open_album:
+            showerror('Ошибка', "Нельзя удалить выбранный трек")
+            return
+
+        try:
+            remove(f'albums/{init_albums.open_album}/{self.selected_music}')
+        except FileNotFoundError as e:
+            showerror('Ошибка', "Такого файла несуществует")
+            return
+
+        self.unselected_music()
+        self.update_musiclist()
 
     def unselected_music(self,event=None):
         if self.selected_music is None:
@@ -559,7 +598,7 @@ class MusicList:
     def select_music(self,event,music):
         self.unselected_music()
         print(event,music,'xxx')
-        self.musiclist[f'{music}'].config(bg='lightgreen')
+        self.musiclist[f'{music}'].config(bg='pale green')
         self.selected_music = f'{music}'
 
 
@@ -570,19 +609,20 @@ class MusicList:
          return lambda event:self.chose_music(event,music)
 
     def chose_music(self,_,music):
-        self.canvas.delete('opened')
-        self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x()-320,self.musiclist[f'{music}'].winfo_y(),
-                                     self.musiclist[f'{music}'].winfo_x()-315,self.musiclist[f'{music}'].winfo_y()+102,
-                                     fill='red',tags='opened')
+        if  not self.chosen_music_in_list is None:
+            self.musiclist[list(self.chosen_music_in_list.values())[0]].delete('opened')
+        # self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x()-320,self.musiclist[f'{music}'].winfo_y(),
+        #                              self.musiclist[f'{music}'].winfo_x()-315,self.musiclist[f'{music}'].winfo_y()+102,
+        #                              fill='red',tags='opened')
+        self.musiclist[f'{music}'].create_rectangle(
+            int(self.musiclist[f'{music}'].winfo_width()) - 10, 0,
+            int(self.musiclist[f'{music}'].winfo_width()),
+            int(self.musiclist[f'{music}'].winfo_height()), fill='red',
+            tags='opened')
         self.chosen_music_in_list = {f'{init_albums.open_album}':f'{music}'}
         print('chosen music: ',self.chosen_music_in_list)
 
-    def safe_chose_music(self,music):
-        self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x() - 320,
-                                     self.musiclist[f'{music}'].winfo_y(),
-                                     self.musiclist[f'{music}'].winfo_x() - 315,
-                                     self.musiclist[f'{music}'].winfo_y() + 102,
-                                     fill='red', tags='opened')
+
 
     def update_musiclist(self):
         self.canvas.delete('music_main_canvas')
@@ -591,7 +631,6 @@ class MusicList:
         self.musiclist.clear()
         self.icon_list.clear()
         self.icon_list_id.clear()
-        music_list.configure(scrollregion=music_list.bbox(ALL))
         path_album = f'albums/{init_albums.open_album}'
         try:
             list_music = listdir(path_album)
@@ -613,28 +652,19 @@ class MusicList:
             metadata = get_metadata(f'{path_album}/{music}', extension)
             print(metadata)
             self.icon_list[f'{music}'] =  get_metadata_icon(f'{path_album}/{music}',extension)
-            self.musiclist[f'{music}'] = Canvas(width=int(self.canvas.cget('width'))-30,height=100,bg='grey90')
-            temp = self.canvas.create_window(coords[0],coords[1], window=self.musiclist[f'{music}'],tags='music_main_canvas',anchor=NW)
-            self.canvas.tag_lower(temp)
-            music_frame.lower()
+            self.musiclist[f'{music}'] = Canvas(self.canvas,width=int(self.canvas.cget('width'))-30,height=100,bg='grey90')
+            self.canvas.create_window(coords[0],coords[1], window=self.musiclist[f'{music}'],tags='music_main_canvas',anchor=NW)
             self.icon_list_id[f'{music}'] =  self.musiclist[f'{music}'].create_image(5,5,image=self.icon_list[f'{music}'],anchor=NW)
-            self.musiclist[f'{music}'].create_text(100,10,text=f'{metadata['name']}',anchor=NW,font='arial 20')
+            self.musiclist[f'{music}'].create_text(100,10,text=f'{metadata['name']}',anchor=NW,font='arial 20 bold')
             self.musiclist[f'{music}'].create_text(100,40, text=f'{metadata['author']}', anchor=NW,font='arial 15')
-            self.musiclist[f'{music}'].create_text(100, 65, text=f'{metadata['genre']}', anchor=NW, font='arial 15')
+            self.musiclist[f'{music}'].create_text(100, 65, text=f'{metadata['genre']}', anchor=NW, font='arial 15 italic')
             self.musiclist[f'{music}'].bind('<Button-1>',self.func_constr_for_select(f'{music}'))
             self.musiclist[f'{music}'].bind('<Button-3>', self.unselected_music)
             self.musiclist[f'{music}'].bind('<Double-Button-1>', self.func_constr_for_chose(f'{music}'))
-            self.musiclist[f'{music}'].lower(ALL)
-            chosen_music.lift(ALL)
+            self.canvas.config(scrollregion=self.canvas.bbox(ALL))
             print(self.icon_list)
             print(self.icon_list_id)
-        # self.canvas.tag_lower('music_main_canvas')
-        # self.canvas.lift('music_main_canvas')
-        # music_list.configure(scrollregion=(self.canvas.winfo_x(),self.canvas.winfo_y(),self.canvas.winfo_x()+self.canvas.winfo_width(),self.canvas.winfo_y()+self.canvas.winfo_height()))
-        music_list.configure(scrollregion=music_list.bbox('music_main_canvas'))
-        self.canvas.lower(ALL)
-        music_frame.lower()
-        chosen_music.lift(ALL)
+
         if not self.chosen_music_in_list is None:
             if list(self.chosen_music_in_list.keys())[0] == init_albums.open_album:
                 print('Music_list> ' ,self.musiclist)
@@ -643,19 +673,11 @@ class MusicList:
                 print(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-50),int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height'))+40,
                                              int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height'))+160)
                 print('listdir> ',list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'))
-                self.canvas.create_rectangle(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-55),30+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
-                                             int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),132+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
-                                             fill='red', tags='opened')
-                # self.safe_chose_music(f'{list(self.chosen_music_in_list.values())[0]}')
-
-
-
-
-
-
-
-
-
+                self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].create_rectangle(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-10,0,
+                                                                                                  int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width')),
+                                                                                                  int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height')),fill='red', tags='opened')
+                # int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-55),30+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
+                #                              int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),132+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
 
 
 
@@ -680,8 +702,15 @@ def update_size(event):
     main_canvas.config(width=new_screen_size[0], height=(new_screen_size[1] - 100 - INTERVAL * 2))
     album_list.config(height=main_canvas.winfo_height())
     music_list.config(width=(main_canvas.winfo_width() - 335), height=main_canvas.winfo_height())
-    # album_list.configure(scrollregion=album_list.bbox(ALL))
-    # music_list.configure(scrollregion=music_list.bbox(ALL))
+    init_albums.track_list.canvas.itemconfig('music_main_canvas', width=music_list.winfo_width() - 25)
+    if not init_albums.track_list.chosen_music_in_list is None:
+        if init_albums.open_album == list(init_albums.track_list.chosen_music_in_list.keys())[0]:
+            init_albums.track_list.musiclist[f'{list(init_albums.track_list.chosen_music_in_list.values())[0]}'].coords('opened',(
+                init_albums.track_list.musiclist[f'{list(init_albums.track_list.chosen_music_in_list.values())[0]}'].winfo_width()-10,
+                0,
+                init_albums.track_list.musiclist[f'{list(init_albums.track_list.chosen_music_in_list.values())[0]}'].winfo_width(),
+                init_albums.track_list.musiclist[f'{list(init_albums.track_list.chosen_music_in_list.values())[0]}'].winfo_height()))
+    music_list.update_idletasks()
 
 
 def update_place_widgets(event):
@@ -692,7 +721,20 @@ def update_place_widgets(event):
     volume_button.update_coords((chosen_music.winfo_width()-180, chosen_music.winfo_height() // 2 +2))
     chosen_music.coords(volume_scale_id, chosen_music.winfo_width() -100, chosen_music.winfo_height() // 2-6)
     chosen_music.itemconfig(progress_track_bar_id,width=chosen_music.winfo_width() -120)
-    init_albums.track_list.canvas.itemconfig('music_main_canvas', width=main_canvas.winfo_width() - 362)
+
+
+def set_active_canvas(canvas):
+    global active_canvas
+    active_canvas = canvas
+
+def on_mousewheel(event):
+    if active_canvas is None:
+        return
+    if event.num == 4 or event.delta > 0:
+        active_canvas.yview_scroll(-1, "units")
+    elif event.num == 5 or event.delta < 0:
+        active_canvas.yview_scroll(1, "units")
+
 
 def update_volume(value):
     print(volume_button.get_image())
@@ -739,15 +781,6 @@ def volume_off_on(event):
         update_volume(volume_var.get())
 
 
-# def window_add_album():
-#     album_name = None
-#     album_name = new_window_add_album()
-#     if album_name is None:
-#         return
-#     print(album_name, '<<<<<<')
-    # init_albums.add_album(album_name,icon_path)
-
-
 def new_window_add_album():
     window = AddAlbum()
 
@@ -760,7 +793,7 @@ def new_window_add_music():
     window = AddMusic()
 
 def delete_music():
-    pass
+    init_albums.track_list.del_music()
 
 def seek_position_in_progress_bar(event):
     percent_progress = (event.x / int(progress_track_bar.winfo_width()))*100
@@ -782,6 +815,7 @@ def enter_canvas(event)-> None:
 screen = Tk()
 screen.geometry(f'{SCREEN_SIZE[0]}x{SCREEN_SIZE[1]}')
 screen.title("MusicPlayer")
+screen.minsize(800,400)
 try:
     icon = PhotoImage(file="icons/iconPlayer.png")
     screen.iconphoto(True, icon)
@@ -800,7 +834,7 @@ ICONS = {
     'volume':PhotoImage(file='icons/volume.png').subsample(14,14),
     'volume_off':PhotoImage(file='icons/volume_off.png').subsample(16,16),
 }
-
+active_canvas = None
 main_canvas = Canvas(bg="gray95", width=SCREEN_SIZE[0], height=(SCREEN_SIZE[1] - 100 - INTERVAL * 2))
 main_canvas.pack(anchor=SW, expand=True, fill=Y)
 album_frame = Frame(main_canvas)
@@ -813,6 +847,8 @@ scroll_bar_albums.grid(row=0,column=1,sticky=NS)
 album_frame.grid_rowconfigure(0, weight=1)
 album_frame.grid_columnconfigure(0, weight=1)
 album_list_id = main_canvas.create_window(0,0,window=album_frame,anchor=NW)
+album_list.bind('<Enter>',lambda event: set_active_canvas(album_list))
+
 menu = Menu(bg='grey90',tearoff=0)
 album_menu = Menu(bg='grey90',tearoff=0)
 album_menu.add_command(label='Добавить альбом',command=new_window_add_album)
@@ -820,17 +856,16 @@ album_menu.add_command(label='Удалить выбранный альбом',co
 music_menu = Menu(bg='grey90',tearoff=0)
 music_menu.add_command(label='Добавить трек',command=new_window_add_music,state=DISABLED)
 music_menu.add_command(label='Удалить выбранный трек',command=delete_music,state=DISABLED)
-menu.add_cascade(label='album list',menu=album_menu)
-menu.add_cascade(label='music list',menu=music_menu)
+menu.add_cascade(label='Альбомы',menu=album_menu)
+menu.add_cascade(label='Треки',menu=music_menu)
 screen.config(menu=menu)
-button_add_album = ttk.Button(width=10,text='+',command=new_window_add_album)
-album_list.create_window(10,10,anchor=NW,window=button_add_album)
-button_add_album = ttk.Button(width=10,text='-',command=delete_album)
-album_list.create_window(90,10,anchor=NW,window=button_add_album)
+# button_add_album = ttk.Button(width=10,text='+',command=new_window_add_album)
+# album_list.create_window(10,10,anchor=NW,window=button_add_album)
+# button_add_album = ttk.Button(width=10,text='-',command=delete_album)
+# album_list.create_window(90,10,anchor=NW,window=button_add_album)
 
 # for i in range(1,100):
 #     album_list.create_rectangle(0, 0 + i * 100, 100, 100 + i * 100, fill='pink')
-album_list.configure(scrollregion=album_list.bbox(ALL))
 
 music_frame = Frame(main_canvas)
 music_list = Canvas(music_frame, background='white', width=int(main_canvas.cget('width')) - 335, height=main_canvas.cget('height'))
@@ -841,14 +876,15 @@ scroll_bar_music.grid(row=0, column=3, sticky=NS)
 music_frame.grid_rowconfigure(2, weight=1)
 music_frame.grid_columnconfigure(2, weight=1)
 music_list_id = main_canvas.create_window(315, 0, window=music_frame, anchor=NW)
+music_list.bind('<Enter>',lambda event: set_active_canvas(music_list))
 # music_list.configure(scrollregion=music_list.bbox(ALL))
 # test_button = ttk.Button(width=15,command=test_def)
 # music_list.create_window(100,100,window=test_button,anchor=NW)
 
 init_albums = Albums(album_list,music_list)
 init_albums.update_list_albums()
-album_list.configure(scrollregion=album_list.bbox(ALL))
-music_list.configure(scrollregion=music_list.bbox(ALL))
+
+
 
 
 
@@ -864,6 +900,7 @@ repeat_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+1
 volume_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))-180,int(chosen_music.cget('height'))// 2+2)),ICONS['volume'],volume_off_on)
 volume_scale = Scale(orient=HORIZONTAL,length=100,from_=0,to=100,bg='grey90',highlightbackground='grey90',variable=volume_var,command=update_volume)
 volume_scale_id = chosen_music.create_window(int(chosen_music.cget("width"))-100,int(chosen_music.cget('height'))// 2-6,anchor=CENTER,window=volume_scale)
+
 # try:
 #     ICONS['icon_chosen_music'] = PhotoImage(file="C:/Users/bozdy/OneDrive/Pictures/Screenshots/Снимок экрана 2025-06-01 123922.png")
 #     if ICONS['icon_chosen_music'].width() > 90 and ICONS['icon_chosen_music'].height() > 90:
@@ -875,24 +912,26 @@ volume_scale_id = chosen_music.create_window(int(chosen_music.cget("width"))-100
 #     icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['icon_chosen_music'], anchor=CENTER)
 # except:
 icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['default'], anchor=CENTER)
-music_name_label = chosen_music.create_text(100,25,text='Название трека',anchor=NW,font='arial 20')
-album_name_label = chosen_music.create_text(100,55,text='Альбом',anchor=NW,font='arial 15')
-music_author_label = chosen_music.create_text(100,75,text='Автор',anchor=NW,font='arial 15')
+music_name_label = chosen_music.create_text(100,25,text='Название трека',anchor=NW,font='arial 16 bold')
+album_name_label = chosen_music.create_text(100,50,text='Альбом',anchor=NW,font='arial 12')
+music_author_label = chosen_music.create_text(100,70,text='Автор',anchor=NW,font='arial 12 italic')
 progress_track_bar_var = DoubleVar()
-# style_for_progress_bar = ttk.Style()
-# style_for_progress_bar.theme_use('classic')
-# style_for_progress_bar.configure(f"Custom.classic.Horizontal.TProgressbar",
-#                                 background='red',
-#                                 troughcolor='lightgray')
-progress_track_bar = ttk.Progressbar(orient=HORIZONTAL,value=progress_track_bar_var.get())
+style_for_progress_bar = ttk.Style()
+style_for_progress_bar.theme_use('classic')
+style_for_progress_bar.configure(f"Custom.classic.Horizontal.TProgressbar",
+                                background='red',
+                                troughcolor='lightgray')
+progress_track_bar = ttk.Progressbar(chosen_music,style='Custom.classic.Horizontal.TProgressbar', orient=HORIZONTAL,value=progress_track_bar_var.get())
 progress_track_bar.bind('<Double-Button-1>',seek_position_in_progress_bar)
 progress_track_bar.bind('<ButtonPress-1>',lambda event: progress_track_bar.bind('<Motion>',seek_position_in_progress_bar))
 progress_track_bar.bind('<ButtonRelease-1>',lambda event: progress_track_bar.unbind('<Motion>'))
 progress_track_bar_id =  chosen_music.create_window(100,5,anchor=NW,window=progress_track_bar,width=int(chosen_music.cget('width'))-120)
 
 
-main_canvas.bind("<Configure>", update_size)
+screen.bind("<Configure>", update_size)
 chosen_music.bind("<Configure>",update_place_widgets)
+screen.bind_all('<MouseWheel>',on_mousewheel)
+# screen.protocol('WM_FULLSCREEN_WINDOW',on_fullscreen)
 
 Interval_south = Canvas(screen, height=INTERVAL)
 Interval_south.pack(anchor=S,fill="x", expand=False)
