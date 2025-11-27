@@ -1,5 +1,3 @@
-from asyncio import ALL_COMPLETED
-from re import search
 from tkinter import *
 from tkinter import DoubleVar
 from os import mkdir, listdir, rmdir,remove
@@ -243,6 +241,7 @@ class AddAlbum:
         self.newscreen.geometry('400x200')
         self.newscreen.title('Добавление нового альбома')
         self.newscreen.protocol("WM_DELETE_WINDOW", lambda: self.dismiss())
+
         Label(self.newscreen, text='Введите имя альбома:').pack(anchor=NW, padx=10, pady=10)
         check = (self.newscreen.register(self.check_len_text), "%P")
         self.album_maybe_name = StringVar()
@@ -439,7 +438,7 @@ class Albums:
             try:
                 self.albums_image[f'{album}'] = ImageTk.PhotoImage(Image.open(str(dict_path_icon_album[album])).resize((90,90)))
             except FileNotFoundError:
-                self.albums_image[f'{album}'] = ICONS['default']
+                self.albums_image[f'{album}'] = ImageTk.PhotoImage(Image.open('icons/iconPlayer.png').resize((90,90)))
                 print('Ошибка, файл не найден')
 
             print(coords,album,self.albums,self.canvas)
@@ -610,7 +609,8 @@ class MusicList:
 
     def chose_music(self,_,music):
         if  not self.chosen_music_in_list is None:
-            self.musiclist[list(self.chosen_music_in_list.values())[0]].delete('opened')
+            if list(self.chosen_music_in_list.values())[0] in self.musiclist.keys():
+                self.musiclist[list(self.chosen_music_in_list.values())[0]].delete('opened')
         # self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x()-320,self.musiclist[f'{music}'].winfo_y(),
         #                              self.musiclist[f'{music}'].winfo_x()-315,self.musiclist[f'{music}'].winfo_y()+102,
         #                              fill='red',tags='opened')
@@ -620,7 +620,7 @@ class MusicList:
             int(self.musiclist[f'{music}'].winfo_height()), fill='red',
             tags='opened')
         self.chosen_music_in_list = {f'{init_albums.open_album}':f'{music}'}
-        print('chosen music: ',self.chosen_music_in_list)
+        update_chose_music()
 
 
 
@@ -718,10 +718,10 @@ def update_place_widgets(event):
     next_button.update_coords((chosen_music.winfo_width() // 2 + 50, chosen_music.winfo_height() // 2))
     prev_button.update_coords((chosen_music.winfo_width() // 2 - 55, chosen_music.winfo_height() // 2-1))
     repeat_button.update_coords((chosen_music.winfo_width() // 2 +100, chosen_music.winfo_height() // 2 +2))
-    volume_button.update_coords((chosen_music.winfo_width()-180, chosen_music.winfo_height() // 2 +2))
-    chosen_music.coords(volume_scale_id, chosen_music.winfo_width() -100, chosen_music.winfo_height() // 2-6)
+    volume_button.update_coords((chosen_music.winfo_width()-270, chosen_music.winfo_height() // 2 +2))
+    chosen_music.coords(volume_scale_id, chosen_music.winfo_width() -190, chosen_music.winfo_height() // 2-6)
     chosen_music.itemconfig(progress_track_bar_id,width=chosen_music.winfo_width() -120)
-
+    chosen_music.coords(time_label,chosen_music.winfo_width() -130, chosen_music.winfo_height()-75)
 
 def set_active_canvas(canvas):
     global active_canvas
@@ -801,6 +801,37 @@ def seek_position_in_progress_bar(event):
         return
     progress_track_bar.config(value=percent_progress)
 
+def test():
+    # Чисто тестовая функция для проверки работаспособности update_time_label
+    import random
+    update_time_label(random.randint(1,10000),random.randint(1,10000))
+    screen.after('idle',test)
+
+def update_time_label(seconds,duration_seconds):
+    hours = seconds // 3600
+    minutes = seconds // 60 - hours*60
+    duration_hours = duration_seconds // 3600
+    duration_minutes = duration_seconds // 60 - duration_hours * 60
+    chosen_music.itemconfig(time_label,text=f'{hours if hours >= 10 else f'0{hours}'}:{minutes if minutes >= 10 else f'0{minutes}'}:{seconds%60 if seconds%60 >= 10 else f'0{seconds%60}'}/{duration_hours if duration_hours >= 10 else f'0{duration_hours}'}:{duration_minutes if duration_minutes >= 10 else f'0{duration_minutes}'}:{duration_seconds%60 if duration_seconds%60 >= 10 else f'0{duration_seconds%60}'}')
+
+def update_chose_music():
+    if init_albums.track_list.chosen_music_in_list is None:
+        return
+    global chosen_music_path
+    global chosen_music_icon
+    chosen_music_path = f'albums/{list(init_albums.track_list.chosen_music_in_list.keys())[0]}/{list(init_albums.track_list.chosen_music_in_list.values())[0]}'
+    extension = ''
+    for i in range(len(chosen_music_path)-1,0,-1):
+        if chosen_music_path[i] == '.':
+            break
+        extension += chosen_music_path[i]
+    extension = extension[::-1]
+    chosen_music_icon = get_metadata_icon(chosen_music_path,extension)
+    chosen_music.itemconfig(icon_chosen_music_id,image=chosen_music_icon)
+    metadata = get_metadata(chosen_music_path,extension)
+    chosen_music.itemconfig(music_name_label,text=metadata['name'])
+    chosen_music.itemconfig(album_name_label, text=f'{list(init_albums.track_list.chosen_music_in_list.keys())[0]}')
+    chosen_music.itemconfig(music_author_label, text=metadata['author'])
 
 def get_info(event):
     print([main_canvas.winfo_width(), main_canvas.winfo_height()], [screen.winfo_width(), screen.winfo_height()])
@@ -809,9 +840,6 @@ def get_info(event):
 def enter_canvas(event)-> None:
     print(event.x,event.y)
 
-# def add_album(event=None):
-#     album = Albums(album_list,'test',ICONS['default'],get_info,(20,20))
-
 screen = Tk()
 screen.geometry(f'{SCREEN_SIZE[0]}x{SCREEN_SIZE[1]}')
 screen.title("MusicPlayer")
@@ -819,7 +847,7 @@ screen.minsize(800,400)
 try:
     icon = PhotoImage(file="icons/iconPlayer.png")
     screen.iconphoto(True, icon)
-except:
+except FileNotFoundError:
     print("Файл иконки не найден")
 
 ICONS = {
@@ -890,6 +918,8 @@ init_albums.update_list_albums()
 
 chosen_music = Canvas(bg="gray90", width=SCREEN_SIZE[0], height=100)
 chosen_music.pack(anchor=S, expand=True,fill='x')
+chosen_music_path = None
+chosen_music_icon = None
 volume_var = DoubleVar(value=50.0)
 last_volume_var = DoubleVar()
 repeat_var = None
@@ -897,31 +927,35 @@ play_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2,int
 next_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+50,int(chosen_music.cget('height'))// 2)),ICONS['next'],get_info)
 prev_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2-55,int(chosen_music.cget('height'))// 2-1)),ICONS['prev'],get_info)
 repeat_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+100,int(chosen_music.cget('height'))// 2+2)),ICONS['repeat_off'],update_repeat)
-volume_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))-180,int(chosen_music.cget('height'))// 2+2)),ICONS['volume'],volume_off_on)
+volume_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))-270,int(chosen_music.cget('height'))// 2+2)),ICONS['volume'],volume_off_on)
 volume_scale = Scale(orient=HORIZONTAL,length=100,from_=0,to=100,bg='grey90',highlightbackground='grey90',variable=volume_var,command=update_volume)
-volume_scale_id = chosen_music.create_window(int(chosen_music.cget("width"))-100,int(chosen_music.cget('height'))// 2-6,anchor=CENTER,window=volume_scale)
-
-# try:
-#     ICONS['icon_chosen_music'] = PhotoImage(file="C:/Users/bozdy/OneDrive/Pictures/Screenshots/Снимок экрана 2025-06-01 123922.png")
-#     if ICONS['icon_chosen_music'].width() > 90 and ICONS['icon_chosen_music'].height() > 90:
-#         ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(round(ICONS['icon_chosen_music'].width()/90),round(ICONS['icon_chosen_music'].height()/90))
-#     elif ICONS['icon_chosen_music'].width() > 90:
-#         ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(round(ICONS['icon_chosen_music'].width()/90),1)
-#     elif ICONS['icon_chosen_music'].height() > 90:
-#         ICONS['icon_chosen_music'] = ICONS['icon_chosen_music'].subsample(1,round(ICONS['icon_chosen_music'].height()/90))
-#     icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['icon_chosen_music'], anchor=CENTER)
-# except:
+volume_scale_id = chosen_music.create_window(int(chosen_music.cget("width"))-190,int(chosen_music.cget('height'))// 2-6,anchor=CENTER,window=volume_scale)
+time_label = chosen_music.create_text(900,20,anchor=NW,text='00:00:00/00:00:00',font='Arial 10 italic',activefill='grey60')
 icon_chosen_music_id = chosen_music.create_image(50, 50, image=ICONS['default'], anchor=CENTER)
 music_name_label = chosen_music.create_text(100,25,text='Название трека',anchor=NW,font='arial 16 bold')
 album_name_label = chosen_music.create_text(100,50,text='Альбом',anchor=NW,font='arial 12')
 music_author_label = chosen_music.create_text(100,70,text='Автор',anchor=NW,font='arial 12 italic')
 progress_track_bar_var = DoubleVar()
-style_for_progress_bar = ttk.Style()
-style_for_progress_bar.theme_use('classic')
-style_for_progress_bar.configure(f"Custom.classic.Horizontal.TProgressbar",
-                                background='red',
-                                troughcolor='lightgray')
-progress_track_bar = ttk.Progressbar(chosen_music,style='Custom.classic.Horizontal.TProgressbar', orient=HORIZONTAL,value=progress_track_bar_var.get())
+style_for_progress_bar = ttk.Style(screen)
+style_for_progress_bar.theme_use('clam')
+style_for_progress_bar.theme_settings('clam',settings={
+    'TButton':{
+        'configure':{
+            'background': 'grey99',
+            'bordercolor':"grey99",
+            'darkcolor':'grey10'
+        }
+    }
+})
+style_for_progress_bar.configure("Custom.Vertical.TProgressbar",
+                background='lightblue',
+                troughcolor='gray',
+                bordercolor='darkblue')
+
+style_for_progress_bar.map("Custom.Vertical.TProgressbar",
+          background=[('active', 'green'),
+                     ('disabled', 'gray')])
+progress_track_bar = ttk.Progressbar(chosen_music,style='Custom.Vertical.TProgressbar', orient=HORIZONTAL,value=progress_track_bar_var.get())
 progress_track_bar.bind('<Double-Button-1>',seek_position_in_progress_bar)
 progress_track_bar.bind('<ButtonPress-1>',lambda event: progress_track_bar.bind('<Motion>',seek_position_in_progress_bar))
 progress_track_bar.bind('<ButtonRelease-1>',lambda event: progress_track_bar.unbind('<Motion>'))
