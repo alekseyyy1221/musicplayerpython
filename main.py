@@ -13,6 +13,8 @@ import mutagen.wave as wave
 from mutagen.id3 import APIC,TIT2,TPE1,TCON
 import io
 
+import audio_play
+
 SCREEN_SIZE = (1000,600)
 INTERVAL = 10
 try:
@@ -23,22 +25,6 @@ try:
     mkdir('storage_icon')
 except:
     print("Уже создана")
-print(listdir('icons'))
-
-# def format_image(image) -> PhotoImage:
-#     if image.width() > 90 and image.height() > 90:
-#         image = image.subsample(round(image.width() / 90),round(image.height() / 90))
-#     elif image.width() > 90:
-#         image = image.subsample(round(image.width() / 90), 1)
-#     elif image.height() > 90:
-#         image = image.subsample(1, round(image.height() / 90))
-#     if image.width() < 90 and image.height() < 90:
-#         image = image.zoom(round(90 / image.width()),round(90 / image.height()))
-#     elif image.width() < 90:
-#         image = image.zoom(90 / round(image.width()), 1)
-#     elif image.height() < 90:
-#         image = image.zoom(1, 90 / round(image.height()))
-#     return image
 
 def get_metadata_icon(path,extansion) -> PhotoImage:
     if extansion == 'mp3':
@@ -224,15 +210,12 @@ class AddMusic:
             showerror('Ошибка', "Необходимо выбрать файл")
             print('Пустой путь к файлу')
             return
-        print(self.name_track.get(),self.extansion,self.absolut_path,self.check_copy.get(),self.changed_icon,self.author_track.get(),self.genre_track.get())
         init_albums.track_list.add_music(self.name_track.get(),self.extansion,self.absolut_path,self.check_copy.get(),self.changed_icon,self.author_track.get(),self.genre_track.get())
 
         pass
     def dismiss(self):
         self.newscreen.grab_release()
         self.newscreen.destroy()
-
-
 
 
 class AddAlbum:
@@ -329,33 +312,6 @@ class Albums:
 
     def select_album(self,_,album):
         self.unselect_album('NonEvent')
-        # search_coords = []
-        # if len(self.albums_coords_size) != 1:
-        #     if event.x >= 150:
-        #         search_coords.append(160)
-        #     else:
-        #         search_coords.append(40)
-        #     coff = round(event.y / 140)
-        #     if coff < 1:
-        #         search_coords.append(40)
-        #     else:
-        #         row_list = []
-        #         for row in range(len(self.albums_coords_size)):
-        #             row_list.append((30+140*row,130+140*row))
-        #         row_album = None
-        #         for row in range(len(row_list)):
-        #             if event.y == row_list[row][0]:
-        #                 row_album = row_list[row]
-        #                 break
-        #             elif event.y < row_list[row][0]:
-        #                 row_album = row_list[row-1]
-        #                 break
-        #         if row_album is None:
-        #             return
-        #         search_coords.append(row_album[0]+10)
-        # else:
-        #     search_coords.append(40)
-        #     search_coords.append(40)
         coords_tuple = (self.canvas.coords(self.albums[album]))
         self.selected_album = album
         select_rectangle = self.canvas.create_rectangle(coords_tuple[0]-10,coords_tuple[1]-10,
@@ -373,29 +329,6 @@ class Albums:
         self.canvas.delete('opened')
         music_menu.entryconfig('Добавить трек',state=ACTIVE)
         music_menu.entryconfig('Удалить выбранный трек', state=ACTIVE)
-        # search_coords = []
-        # if event.x >= 150:
-        #     search_coords.append(160)
-        # else:
-        #     search_coords.append(40)
-        # coff = round(event.y / 140)
-        # if coff < 1:
-        #     search_coords.append(40)
-        # else:
-        #     row_list = []
-        #     for row in range(len(self.albums_coords_size)):
-        #         row_list.append((30 + 140 * row, 130 + 140 * row))
-        #     row_album = None
-        #     for row in range(len(row_list)):
-        #         if event.y == row_list[row][0]:
-        #             row_album = row_list[row]
-        #             break
-        #         elif event.y < row_list[row][0]:
-        #             row_album = row_list[row - 1]
-        #             break
-        #     if row_album is None:
-        #         return
-        #     search_coords.append(row_album[0] + 10)
         search_coords_tuple = (self.canvas.coords(self.albums[album]))
         self.open_album = album
         open_rectangle = self.canvas.create_rectangle(search_coords_tuple[0] - 5, search_coords_tuple[1] - 5,
@@ -568,7 +501,6 @@ class MusicList:
             temp['TCON'] = TCON(encoding=3, text=[f'{genre}'])
             temp.save()
         self.update_musiclist()
-        # self.musiclist[f'{name}.{extensions}'] = f'albums/{init_albums.open_album}/{name}.{extensions}'
 
 
     def del_music(self):
@@ -633,7 +565,7 @@ class MusicList:
         self.icon_list_id.clear()
         path_album = f'albums/{init_albums.open_album}'
         try:
-            list_music = listdir(path_album)
+            list_music = sorted(listdir(path_album))
         except FileNotFoundError:
             print('альбом не был найден')
             return
@@ -650,7 +582,6 @@ class MusicList:
                 extension += music[i]
             extension = extension[::-1]
             metadata = get_metadata(f'{path_album}/{music}', extension)
-            print(metadata)
             self.icon_list[f'{music}'] =  get_metadata_icon(f'{path_album}/{music}',extension)
             self.musiclist[f'{music}'] = Canvas(self.canvas,width=int(self.canvas.cget('width'))-30,height=100,bg='grey90')
             self.canvas.create_window(coords[0],coords[1], window=self.musiclist[f'{music}'],tags='music_main_canvas',anchor=NW)
@@ -662,22 +593,12 @@ class MusicList:
             self.musiclist[f'{music}'].bind('<Button-3>', self.unselected_music)
             self.musiclist[f'{music}'].bind('<Double-Button-1>', self.func_constr_for_chose(f'{music}'))
             self.canvas.config(scrollregion=self.canvas.bbox(ALL))
-            print(self.icon_list)
-            print(self.icon_list_id)
 
         if not self.chosen_music_in_list is None:
             if list(self.chosen_music_in_list.keys())[0] == init_albums.open_album:
-                print('Music_list> ' ,self.musiclist)
-                # print(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-320,self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].winfo_y(),
-                #                              self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-315,self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].winfo_y()+100)
-                print(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-50),int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height'))+40,
-                                             int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height'))+160)
-                print('listdir> ',list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'))
                 self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].create_rectangle(int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-10,0,
                                                                                                   int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width')),
                                                                                                   int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('height')),fill='red', tags='opened')
-                # int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-55),30+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
-                #                              int(self.musiclist[f'{list(self.chosen_music_in_list.values())[0]}'].cget('width'))-(int(self.canvas.cget('width'))-60),132+120*list_music.index(f'{list(self.chosen_music_in_list.values())[0]}'),
 
 
 
@@ -735,12 +656,29 @@ def on_mousewheel(event):
     elif event.num == 5 or event.delta < 0:
         active_canvas.yview_scroll(1, "units")
 
+def next_track(event):
+    if not audio.is_loaded:
+        return
+    current_track = list(init_albums.track_list.chosen_music_in_list.values())[0]
+    if current_track in current_track_list:
+        current_track = current_track_list.index(current_track)+1 if not len(current_track_list) <= current_track_list.index(current_track)+1 else 0
+    init_albums.track_list.chose_music(event,current_track_list[current_track])
+
+def prev_track(event):
+    if not audio.is_loaded:
+        return
+    current_track = list(init_albums.track_list.chosen_music_in_list.values())[0]
+    if current_track in current_track_list:
+        current_track = current_track_list.index(current_track)-1 if not current_track_list.index(current_track)-1 < 0 else len(current_track_list)-1
+    init_albums.track_list.chose_music(event,current_track_list[current_track])
+
 
 def update_volume(value):
-    print(volume_button.get_image())
     if float(value) == 0:
+        audio.set_volume(float(value))
         volume_button.update_image(ICONS['volume_off'])
     elif float(value) > 0:
+        audio.set_volume(float(value))
         volume_button.update_image(ICONS['volume'])
     else:
         return
@@ -748,24 +686,67 @@ def update_volume(value):
 def update_repeat(event):
     global repeat_var
     if repeat_var is None:
-        print(repeat_var)
         repeat_var = False
         repeat_button.update_image(ICONS['repeat'])
         return
     if not repeat_var:
-        print(repeat_var)
         repeat_var = True
         repeat_button.update_image(ICONS['repeat_one'])
         return
     if repeat_var:
-        print(repeat_var)
         repeat_var = None
         repeat_button.update_image(ICONS['repeat_off'])
         return
 
 def update_play(event):
-    pass
+    if not audio.is_loaded:
+        return
+    global is_paused
+    if is_paused is None:
+        audio.play(volume_var.get())
+        is_paused = False
+        play_button.update_image(ICONS['pause'])
+        update_progress()
+    elif is_paused:
+        audio.unpause()
+        is_paused = False
+        play_button.update_image(ICONS['pause'])
+        update_progress()
+    else:
+        audio.pause()
+        is_paused = True
+        play_button.update_image(ICONS['play'])
 
+def update_progress():
+    global duration_music
+    global is_paused
+    if is_paused or is_paused is None:
+        return
+    if not audio.get_busy:
+        audio.stop()
+        play_button.update_image(ICONS['play'])
+        is_paused = None
+        if repeat_var:
+            update_play('')
+        if not repeat_var:
+            next_track('')
+            update_play('')
+        return
+    current_position = audio.get_current_position // 1000
+    update_time_label(int(current_position),int(duration_music))
+    if not motion:
+        progress_track_bar.config(value=current_position / duration_music * 100)
+    screen.after(100,update_progress)
+
+def on_mouse_in_progressbar(event):
+    global motion
+    progress_track_bar.bind('<Motion>',seek_position_in_progress_bar) if audio.is_loaded and not is_paused is None else ''
+    motion = True
+
+def out_mouse_in_progressbar(event):
+    global motion
+    (seek_position_in_progress_bar(event),progress_track_bar.unbind('<Motion>')) if audio.is_loaded and not is_paused is None else ''
+    motion = False
 
 
 def volume_off_on(event):
@@ -796,29 +777,41 @@ def delete_music():
     init_albums.track_list.del_music()
 
 def seek_position_in_progress_bar(event):
-    percent_progress = (event.x / int(progress_track_bar.winfo_width()))*100
-    if percent_progress < 0 or percent_progress > 100:
+    global duration_music
+    if int(event.type) == 6:
+        percent_progress = (event.x / int(progress_track_bar.winfo_width())) * 100
+        if percent_progress < 0 or percent_progress > 100:
+            return
+        progress_track_bar.config(value=percent_progress)
         return
+    percent_progress = (event.x / int(progress_track_bar.winfo_width()))*100
+    if percent_progress < 0:
+        percent_progress = 0
+    if percent_progress > 100:
+        percent_progress = 100
     progress_track_bar.config(value=percent_progress)
+    audio.set_position(duration_music * percent_progress //100,is_paused)
 
-def test():
-    # Чисто тестовая функция для проверки работаспособности update_time_label
-    import random
-    update_time_label(random.randint(1,10000),random.randint(1,10000))
-    screen.after('idle',test)
 
 def update_time_label(seconds,duration_seconds):
     hours = seconds // 3600
     minutes = seconds // 60 - hours*60
     duration_hours = duration_seconds // 3600
     duration_minutes = duration_seconds // 60 - duration_hours * 60
-    chosen_music.itemconfig(time_label,text=f'{hours if hours >= 10 else f'0{hours}'}:{minutes if minutes >= 10 else f'0{minutes}'}:{seconds%60 if seconds%60 >= 10 else f'0{seconds%60}'}/{duration_hours if duration_hours >= 10 else f'0{duration_hours}'}:{duration_minutes if duration_minutes >= 10 else f'0{duration_minutes}'}:{duration_seconds%60 if duration_seconds%60 >= 10 else f'0{duration_seconds%60}'}')
+    chosen_music.itemconfig(time_label,text=f'{hours if hours >= 10 else f'0{hours}'}:{minutes if minutes >= 10 else f'0{minutes}'}:'
+                                            f'{seconds%60 if seconds%60 >= 10 else f'0{seconds%60}'}/'
+                                            f'{duration_hours if duration_hours >= 10 else f'0{duration_hours}'}:'
+                                            f'{duration_minutes if duration_minutes >= 10 else f'0{duration_minutes}'}:'
+                                            f'{duration_seconds%60 if duration_seconds%60 >= 10 else f'0{duration_seconds%60}'}')
 
 def update_chose_music():
     if init_albums.track_list.chosen_music_in_list is None:
         return
     global chosen_music_path
     global chosen_music_icon
+    global is_paused
+    global duration_music
+    global current_track_list
     chosen_music_path = f'albums/{list(init_albums.track_list.chosen_music_in_list.keys())[0]}/{list(init_albums.track_list.chosen_music_in_list.values())[0]}'
     extension = ''
     for i in range(len(chosen_music_path)-1,0,-1):
@@ -832,13 +825,13 @@ def update_chose_music():
     chosen_music.itemconfig(music_name_label,text=metadata['name'])
     chosen_music.itemconfig(album_name_label, text=f'{list(init_albums.track_list.chosen_music_in_list.keys())[0]}')
     chosen_music.itemconfig(music_author_label, text=metadata['author'])
-
-def get_info(event):
-    print([main_canvas.winfo_width(), main_canvas.winfo_height()], [screen.winfo_width(), screen.winfo_height()])
-    print(event)
-
-def enter_canvas(event)-> None:
-    print(event.x,event.y)
+    current_track_list = sorted(listdir(f'albums/{list(init_albums.track_list.chosen_music_in_list.keys())[0]}'))
+    audio.stop()
+    audio.load_audio(chosen_music_path)
+    duration_music = int(audio.get_duration)
+    update_time_label(0,duration_music)
+    is_paused = None
+    play_button.update_image(ICONS['play'])
 
 screen = Tk()
 screen.geometry(f'{SCREEN_SIZE[0]}x{SCREEN_SIZE[1]}')
@@ -887,13 +880,6 @@ music_menu.add_command(label='Удалить выбранный трек',comman
 menu.add_cascade(label='Альбомы',menu=album_menu)
 menu.add_cascade(label='Треки',menu=music_menu)
 screen.config(menu=menu)
-# button_add_album = ttk.Button(width=10,text='+',command=new_window_add_album)
-# album_list.create_window(10,10,anchor=NW,window=button_add_album)
-# button_add_album = ttk.Button(width=10,text='-',command=delete_album)
-# album_list.create_window(90,10,anchor=NW,window=button_add_album)
-
-# for i in range(1,100):
-#     album_list.create_rectangle(0, 0 + i * 100, 100, 100 + i * 100, fill='pink')
 
 music_frame = Frame(main_canvas)
 music_list = Canvas(music_frame, background='white', width=int(main_canvas.cget('width')) - 335, height=main_canvas.cget('height'))
@@ -905,27 +891,25 @@ music_frame.grid_rowconfigure(2, weight=1)
 music_frame.grid_columnconfigure(2, weight=1)
 music_list_id = main_canvas.create_window(315, 0, window=music_frame, anchor=NW)
 music_list.bind('<Enter>',lambda event: set_active_canvas(music_list))
-# music_list.configure(scrollregion=music_list.bbox(ALL))
-# test_button = ttk.Button(width=15,command=test_def)
-# music_list.create_window(100,100,window=test_button,anchor=NW)
 
 init_albums = Albums(album_list,music_list)
 init_albums.update_list_albums()
-
-
-
-
 
 chosen_music = Canvas(bg="gray90", width=SCREEN_SIZE[0], height=100)
 chosen_music.pack(anchor=S, expand=True,fill='x')
 chosen_music_path = None
 chosen_music_icon = None
+current_track_list = None
+is_paused = False
+duration_music = None
 volume_var = DoubleVar(value=50.0)
 last_volume_var = DoubleVar()
 repeat_var = None
-play_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2,int(chosen_music.cget('height'))// 2)),ICONS['play'],get_info)
-next_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+50,int(chosen_music.cget('height'))// 2)),ICONS['next'],get_info)
-prev_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2-55,int(chosen_music.cget('height'))// 2-1)),ICONS['prev'],get_info)
+motion = False
+audio = audio_play.Audio()
+play_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2,int(chosen_music.cget('height'))// 2)),ICONS['play'],update_play)
+next_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+50,int(chosen_music.cget('height'))// 2)),ICONS['next'],next_track)
+prev_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2-55,int(chosen_music.cget('height'))// 2-1)),ICONS['prev'],prev_track)
 repeat_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))// 2+100,int(chosen_music.cget('height'))// 2+2)),ICONS['repeat_off'],update_repeat)
 volume_button = ImageButton(chosen_music,((int(chosen_music.cget("width"))-270,int(chosen_music.cget('height'))// 2+2)),ICONS['volume'],volume_off_on)
 volume_scale = Scale(orient=HORIZONTAL,length=100,from_=0,to=100,bg='grey90',highlightbackground='grey90',variable=volume_var,command=update_volume)
@@ -956,16 +940,15 @@ style_for_progress_bar.map("Custom.Vertical.TProgressbar",
           background=[('active', 'green'),
                      ('disabled', 'gray')])
 progress_track_bar = ttk.Progressbar(chosen_music,style='Custom.Vertical.TProgressbar', orient=HORIZONTAL,value=progress_track_bar_var.get())
-progress_track_bar.bind('<Double-Button-1>',seek_position_in_progress_bar)
-progress_track_bar.bind('<ButtonPress-1>',lambda event: progress_track_bar.bind('<Motion>',seek_position_in_progress_bar))
-progress_track_bar.bind('<ButtonRelease-1>',lambda event: progress_track_bar.unbind('<Motion>'))
+progress_track_bar.bind('<ButtonPress-1>',on_mouse_in_progressbar)
+progress_track_bar.bind('<ButtonRelease-1>',out_mouse_in_progressbar)
 progress_track_bar_id =  chosen_music.create_window(100,5,anchor=NW,window=progress_track_bar,width=int(chosen_music.cget('width'))-120)
 
 
 screen.bind("<Configure>", update_size)
 chosen_music.bind("<Configure>",update_place_widgets)
 screen.bind_all('<MouseWheel>',on_mousewheel)
-# screen.protocol('WM_FULLSCREEN_WINDOW',on_fullscreen)
+
 
 Interval_south = Canvas(screen, height=INTERVAL)
 Interval_south.pack(anchor=S,fill="x", expand=False)
