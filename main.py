@@ -145,17 +145,17 @@ class AddMusic:
         genre_track_entry = ttk.Entry(self.newscreen, width=50, validate='key', validatecommand=check,
                                      textvariable=self.genre_track)
         genre_track_entry.place(anchor=NW, x=122, y=150)
-        self.new_icon_button = ttk.Button(self.newscreen, width=15, command=self.change_icon, text='Изменить обложку',state=DISABLED)
+        self.new_icon_button = ttk.Button(self.newscreen, width=10, command=self.change_icon, text='Изменить обложку',state=DISABLED)
         self.new_icon_button.place(anchor=NW,x=10,y=120)
         self.newscreen.grab_set()
         self.check_copy = BooleanVar(value=False)
         ttk.Checkbutton(self.newscreen,text='Удалить исходный файл?',variable=self.check_copy).place(anchor=NW,x=122,y=180)
-        ttk.Button(self.newscreen, width=15, command=self.dismiss, text='Отмена').place(anchor=NW, x=500,y=220)
-        ttk.Button(self.newscreen,width=15,command=self.confirm,text='Принять').place(anchor=NW,x=400,y=220)
+        ttk.Button(self.newscreen, width=12, command=self.dismiss, text='Отмена').place(anchor=NW, x=500,y=220)
+        ttk.Button(self.newscreen,width=12,command=self.confirm,text='Принять').place(anchor=NW,x=400,y=220)
 
 
     def get_path(self):
-        self.absolut_path = askopenfilename(filetypes=[('audio files',('*.MP3','*.WAV','*.FLAC'))])
+        self.absolut_path = askopenfilename(filetypes=[('audio files',('*.mp3','*.wav','*.flac'))])
         if self.absolut_path == '':
             return
         self.new_icon_button.config(state='')
@@ -539,19 +539,26 @@ class MusicList:
     def func_constr_for_chose(self,music):
          return lambda event:self.chose_music(event,music)
 
-    def chose_music(self,_,music):
+    def chose_music(self,event,music):
         if  not self.chosen_music_in_list is None:
             if list(self.chosen_music_in_list.values())[0] in self.musiclist.keys():
                 self.musiclist[list(self.chosen_music_in_list.values())[0]].delete('opened')
-        # self.canvas.create_rectangle(self.musiclist[f'{music}'].winfo_x()-320,self.musiclist[f'{music}'].winfo_y(),
-        #                              self.musiclist[f'{music}'].winfo_x()-315,self.musiclist[f'{music}'].winfo_y()+102,
-        #                              fill='red',tags='opened')
-        self.musiclist[f'{music}'].create_rectangle(
-            int(self.musiclist[f'{music}'].winfo_width()) - 10, 0,
-            int(self.musiclist[f'{music}'].winfo_width()),
-            int(self.musiclist[f'{music}'].winfo_height()), fill='red',
-            tags='opened')
-        self.chosen_music_in_list = {f'{init_albums.open_album}':f'{music}'}
+        #['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__',
+        # '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__',
+        # '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__',
+        # '__weakref__', 'char', 'delta', 'height', 'keycode', 'keysym', 'keysym_num', 'num', 'send_event', 'serial', 'state',
+        # 'time', 'type', 'widget', 'width', 'x', 'x_root', 'y', 'y_root']
+        if str(event.widget) == '.!canvas2':
+            self.chosen_music_in_list[list(self.chosen_music_in_list.keys())[0]] = f'{music}'
+        else:
+            self.chosen_music_in_list = {f'{init_albums.open_album}':f'{music}'}
+
+        if music in self.musiclist.keys() and list(self.chosen_music_in_list.keys())[0] == init_albums.open_album:
+            self.musiclist[f'{music}'].create_rectangle(
+                int(self.musiclist[f'{music}'].winfo_width()) - 10, 0,
+                int(self.musiclist[f'{music}'].winfo_width()),
+                int(self.musiclist[f'{music}'].winfo_height()), fill='red',
+                tags='opened')
         update_chose_music()
 
 
@@ -812,6 +819,7 @@ def update_chose_music():
     global is_paused
     global duration_music
     global current_track_list
+    print(list(init_albums.track_list.chosen_music_in_list.keys())[0])
     chosen_music_path = f'albums/{list(init_albums.track_list.chosen_music_in_list.keys())[0]}/{list(init_albums.track_list.chosen_music_in_list.values())[0]}'
     extension = ''
     for i in range(len(chosen_music_path)-1,0,-1):
@@ -948,6 +956,8 @@ progress_track_bar_id =  chosen_music.create_window(100,5,anchor=NW,window=progr
 screen.bind("<Configure>", update_size)
 chosen_music.bind("<Configure>",update_place_widgets)
 screen.bind_all('<MouseWheel>',on_mousewheel)
+screen.bind_all('<Button-4>',on_mousewheel)
+screen.bind_all('<Button-5>',on_mousewheel)
 
 
 Interval_south = Canvas(screen, height=INTERVAL)
