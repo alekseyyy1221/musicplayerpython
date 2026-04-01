@@ -1,4 +1,5 @@
-PIL
-shutil
+Pillow
 mutagen
 pygame
+librosa
+soundfile

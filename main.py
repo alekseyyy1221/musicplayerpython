@@ -5,6 +5,8 @@ import json
 from tkinter.messagebox import showinfo, showerror
 import tkinter.ttk as ttk
 from tkinter.filedialog import askopenfilename
+
+import librosa
 from PIL import Image,ImageTk
 from shutil import move,copy
 from mutagen.mp3 import *
@@ -12,6 +14,8 @@ import mutagen.flac as flac
 import mutagen.wave as wave
 from mutagen.id3 import APIC,TIT2,TPE1,TCON
 import io
+import librosa as lib
+import soundfile as sou
 
 import audio_play
 
@@ -34,10 +38,8 @@ def get_metadata_icon(path,extansion) -> PhotoImage:
                 image = ImageTk.PhotoImage(Image.open(io.BytesIO(apic.data)).resize((90,90)))
                 return image
             else:
-                print('Нет обложки')
                 return ICONS['default']
         else:
-            print('Нет обложки')
             return ICONS['default']
 
     if extansion == 'flac':
@@ -46,7 +48,6 @@ def get_metadata_icon(path,extansion) -> PhotoImage:
             image = ImageTk.PhotoImage(Image.open(io.BytesIO(image_raw)).resize((90,90)))
             return image
         else:
-            print('Нет обложки')
             return ICONS['default']
     if extansion == 'wav':
         if not wave.WAVE(path).tags is None:
@@ -55,10 +56,8 @@ def get_metadata_icon(path,extansion) -> PhotoImage:
                 image = ImageTk.PhotoImage(Image.open(io.BytesIO(apic.data)).resize((90, 90)))
                 return image
             else:
-                print('Нет обложки')
                 return ICONS['default']
         else:
-            print('Нет обложки')
             return ICONS['default']
 
     print(f'Неизвестное расширение {extansion}')
@@ -75,10 +74,13 @@ def get_metadata(path,extansion):
                 dict_metadata['author'] = temp['TPE1']
             if 'TCON' in temp.keys():
                 dict_metadata['genre'] = temp['TCON']
+            if not 'name' in dict_metadata.keys():
+                dict_metadata['name'] = path.split('/')[-1]
             return dict_metadata
         else:
-            print('Нет метаданных')
-            return
+            if not 'name' in dict_metadata.keys():
+                dict_metadata['name'] = path.split('/')[-1]
+            return dict_metadata
     if extansion == 'flac':
         temp = flac.FLAC(path)
         if temp:
@@ -88,10 +90,13 @@ def get_metadata(path,extansion):
                 dict_metadata['author'] = temp['artist'][0]
             if 'genre' in temp.keys():
                 dict_metadata['genre'] = temp['genre'][0]
+            if not 'name' in dict_metadata.keys():
+                dict_metadata['name'] = path.split('/')[-1]
             return dict_metadata
         else:
-            print('Нет метаданных')
-            return
+            if not 'name' in dict_metadata.keys():
+                dict_metadata['name'] = path.split('/')[-1]
+            return dict_metadata
     if extansion == 'wav':
         temp = wave.WAVE(path)
         if temp:
@@ -101,13 +106,17 @@ def get_metadata(path,extansion):
                 dict_metadata['author'] = temp['TPE1']
             if 'TCON' in temp.keys():
                 dict_metadata['genre'] = temp['TCON']
+            if not 'name' in dict_metadata.keys():
+                dict_metadata['name'] = path.split('/')[-1]
             return dict_metadata
         else:
-            print('Нет метаданных')
-            return
+            if not 'name' in dict_metadata.keys():
+                dict_metadata['name'] = path.split('/')[-1]
+            return dict_metadata
 
     print(f'Неизвестное расширение {extansion}')
     return
+
 
 class AddMusic:
     def __init__(self):
@@ -262,6 +271,214 @@ class AddAlbum:
         self.newscreen.grab_release()
         self.newscreen.destroy()
 
+class RedactorAudio:
+
+    class DoubleScale:
+
+        @staticmethod
+        def change_color(event, widget):
+            if int(event.type) == 7:
+                event.widget.itemconfig(widget, fill='blue')
+            else:
+                event.widget.itemconfig(widget, fill='red')
+
+
+        def limit_chars(self,widget,entry_var):
+            print('???',widget.split('.')[-1], entry_var)
+            if len(entry_var) > 1 and entry_var[0] == '0':
+                return False
+            try:
+                float(entry_var)
+                if widget.split('.')[-1] == '!spinbox2':
+                    if float(entry_var) > self.to:
+                        return False
+                    if float(entry_var) <= self.start_var.get():
+                        return False
+                    return True
+                else:
+                    if float(entry_var) >= self.end_var.get():
+                        return False
+                    return True
+            except ValueError:
+                return False
+
+
+        def __init__(self, root, x: float, y: float, height=40, width=200, from_=0, to=200):
+            """
+            :param root: tkinter class type Tk, Toplevel,Canvas, Frame
+            :param height: >= 10
+            :param width: >= 100
+            :param from_: min value
+            :param to: max value
+            """
+
+            self.canvas = Canvas(root, bg='lightgrey', height=height, width=width)
+            self.from_ = from_
+            self.to = to
+            self.start_pos = self.canvas.create_rectangle(1, 1, 15, int(self.canvas.cget('height')) + 2, fill='red',
+                                                          outline='')
+            self.end_pos = self.canvas.create_rectangle(int(self.canvas.cget('width')) - 12, 1,
+                                                        int(self.canvas.cget('width')) + 2,
+                                                        int(self.canvas.cget('height')) + 2, fill='red', outline='')
+            self.start_num = IntVar(value=0)
+            self.end_num = IntVar(value=100)
+            self._mindelta = 3
+            self.canvas.tag_bind(self.start_pos, '<Enter>', lambda e: self.change_color(e, self.start_pos))
+            self.canvas.tag_bind(self.start_pos, '<Leave>', lambda e: self.change_color(e, self.start_pos))
+            self.canvas.tag_bind(self.start_pos, '<ButtonPress-1>', lambda e: self.move_rect(e, self.start_pos))
+            self.canvas.tag_bind(self.start_pos, '<ButtonRelease-1>', lambda e: self.move_rect(e, self.start_pos))
+            self.canvas.tag_bind(self.end_pos, '<Enter>', lambda e: self.change_color(e, self.end_pos))
+            self.canvas.tag_bind(self.end_pos, '<Leave>', lambda e: self.change_color(e, self.end_pos))
+            self.canvas.tag_bind(self.end_pos, '<ButtonPress-1>', lambda e: self.move_rect(e, self.end_pos))
+            self.canvas.tag_bind(self.end_pos, '<ButtonRelease-1>', lambda e: self.move_rect(e, self.end_pos))
+            self.canvas.place(x=x, y=y)
+
+            vcmd_start = (root.register(self.limit_chars), '%W' ,'%P')
+            self.start_var = DoubleVar(value=0)
+            self.end_var = DoubleVar(value=200)
+            self.start_spin = Spinbox(root,
+                                      from_=0,
+                                      to=float('inf'),
+                                      width=4,
+                                      textvariable=self.start_var,
+                                      validatecommand=vcmd_start,
+                                      validate='all',
+                                      command=lambda : self.validate_int('start'))
+            self.end_spin = Spinbox(root,
+                                    from_=1,
+                                    to=float('inf'),
+                                    width=4,
+                                    textvariable=self.end_var,
+                                    validatecommand=vcmd_start,
+                                    validate='all',
+                                    command=lambda : self.validate_int('end'))
+            self.start_spin.place(x=x, y=y + int(self.canvas.cget('height')) + 5)
+            self.end_spin.place(x=x + int(self.canvas.cget('width')) - 35, y=y + int(self.canvas.cget('height')) + 5)
+
+        def validate_int(self,widget):
+            if widget == 'start':
+                if self.start_var.get() >= self.end_var.get():
+                    self.start_var.set(self.end_var.get() - 1 if self.end_var.get() - 1 >= 0 else 0)
+            else:
+                if self.end_var.get() > self.to:
+                    self.end_var.set(self.to)
+                if self.end_var.get() <= self.start_var.get():
+                    self.end_var.set(self.start_var.get()+1 if self.start_var.get() < self.to else self.to)
+
+        def delta_pos(self, event):
+            return event.widget.coords(self.end_pos)[0] - event.widget.coords(self.start_pos)[2]
+
+        def delta_pos_nonevent(self):
+            return self.canvas.coords(self.end_pos)[0] - self.canvas.coords(self.start_pos)[2]
+
+        def move_rect(self, event, widget):
+            def _move(self, event, widget):
+                if widget == self.start_pos:
+                    if 0 > event.x - 7.5:
+                        return
+                    if self.delta_pos(event) <= self._mindelta:
+                        if 0 > event.x - 7.5:
+                            return
+                        event.widget.moveto(widget, event.widget.coords(widget)[0] - (self._mindelta + 2))
+                        event.widget.tag_unbind(widget, '<Motion>')
+                    else:
+                        event.widget.moveto(widget, event.x - 7.5)
+                    self.start_num = IntVar(value=event.widget.coords(widget)[0])
+                    self.start_var.set(int((self.to / 100) * (self.start_num.get() // (event.widget.winfo_width() / 100))))
+                else:
+                    if event.x + 7.5 > float(event.widget.winfo_width()):
+                        return
+                    if self.delta_pos(event) <= self._mindelta:
+                        if event.x + 7.5 > float(event.widget.winfo_width()):
+                            return
+                        event.widget.moveto(widget, event.widget.coords(widget)[0] + (self._mindelta + 2))
+                        event.widget.tag_unbind(widget, '<Motion>')
+                    else:
+                        event.widget.moveto(widget, event.x - 7.5)
+                    self.end_num = IntVar(value=event.widget.coords(widget)[2] + 2) if event.widget.coords(widget)[
+                                                                                              2] + 2 <= event.widget.winfo_width() else IntVar(value=event.widget.winfo_width() + 2)
+                    self.end_var.set(int((self.to / 100) * (self.end_num.get() // (event.widget.winfo_width() / 100))))
+
+            if int(event.type) == 4:
+                event.widget.tag_bind(widget, '<Motion>', lambda e: _move(self, e, widget))
+            if int(event.type) == 5:
+                event.widget.tag_unbind(widget, '<Motion>')
+
+        def _moveto_rect(self, widget, position):
+            self.canvas.moveto(widget, self.canvas.winfo_width() * (position / 100))
+
+        def start_move(self, percent):
+            if 0 > percent:
+                return
+            if self.canvas.coords(self.end_pos)[0] - int(self.canvas.cget('width')) * (percent / 100) <= self._mindelta:
+                return
+            self._moveto_rect(self.start_pos, percent)
+
+        def end_move(self, percent):
+            if 0 > percent:
+                return
+            if int(self.canvas.cget('width')) * (percent / 100) - self.canvas.coords(self.start_pos)[
+                2] <= self._mindelta:
+                return
+            self._moveto_rect(self.end_pos, percent)
+
+
+    def __init__(self,selected_path_music):
+        self.newscreen = Toplevel()
+        self.newscreen.grab_set()
+        self.newscreen.geometry('400x200')
+        self.newscreen.resizable(False,False)
+        self.newscreen.title('Обрезка аудио')
+        self.newscreen.protocol("WM_DELETE_WINDOW", lambda: self.dismiss())
+        self.path = selected_path_music
+        extension = ''
+        for i in range(len(self.path) - 1, 0, -1):
+            if self.path[i] == '.':
+                break
+            extension += self.path[i]
+        extension = extension[::-1]
+        self.sound,self.sample_rate = lib.load(path=selected_path_music,sr=None)
+        self.duration = librosa.get_duration(y=self.sound,sr=self.sample_rate)
+        icon_canvas = Canvas(self.newscreen,width=100,height=100)
+        icon_canvas.place(x=20,y=20)
+        self.icon = get_metadata_icon(self.path,extension)
+        icon_canvas.create_image(10,10,image=self.icon,anchor=NW,tags='image')
+        self.scale = RedactorAudio.DoubleScale(self.newscreen,130,30,height=20,from_=0,to=200)
+        self.newname = StringVar()
+        vcmd = (self.newscreen.register(self.validate_text), '%P')
+        self.tkentry = ttk.Entry(self.newscreen,width=20,validate='key',validatecommand=vcmd,textvariable=self.newname,)
+        self.tkentry.place(x=130,y=80)
+        self.cblist = ttk.Combobox(self.newscreen,width=5,values=('.wav', '.mp3', '.flac'),state='readonly')
+        self.cblist.current(1)
+        self.cblist.place(x=260,y=80)
+        self.allist = ttk.Combobox(self.newscreen, width=20, values=tuple(init_albums.albums.keys()), state='readonly')
+        self.allist.current(tuple(init_albums.albums.keys()).index(self.path[7:].split('/')[0]))
+        self.allist.place(x=130, y=105)
+        ttk.Button(self.newscreen, text='Отмена', command=self.dismiss, width=10).place(x=320, y=165)
+        ttk.Button(self.newscreen, text='Принять', command=self.confirm, width=10).place(x=240, y=165)
+
+
+    @staticmethod
+    def validate_text(text):
+        if len(text) <= 20 and (not (text[-1] if len(text) > 0 else ['']) in (
+        '/', "\\", ':', '?', '*', '<', '>', '"', '|', '#', '$', '{', '}', '!', '[', ']', '(', ')', "'")):
+            return True
+        return False
+
+    def confirm(self):
+        start_final = int(self.scale.start_var.get() * self.sample_rate)
+        end_final = int(self.scale.end_var.get() * self.sample_rate)
+        trim = self.sound[start_final:end_final]
+        sou.write(f'albums/{self.allist.get()}/{self.tkentry.get()}{self.cblist.get()}',trim,self.sample_rate,format=f'{self.cblist.get()[1:]}')
+        self.dismiss()
+
+
+
+    def dismiss(self):
+        del self.sound
+        self.newscreen.grab_release()
+        self.newscreen.destroy()
+
 class Albums:
     def __init__(self,canvas,canvas_for_music):
         self.albums = {}
@@ -329,6 +546,7 @@ class Albums:
         self.canvas.delete('opened')
         music_menu.entryconfig('Добавить трек',state=ACTIVE)
         music_menu.entryconfig('Удалить выбранный трек', state=ACTIVE)
+        music_menu.entryconfig('Обрезать выбранный трек',state=ACTIVE)
         search_coords_tuple = (self.canvas.coords(self.albums[album]))
         self.open_album = album
         open_rectangle = self.canvas.create_rectangle(search_coords_tuple[0] - 5, search_coords_tuple[1] - 5,
@@ -358,7 +576,7 @@ class Albums:
                 print('Обнаружен невалидный альбом')
                 continue
             coords = ()
-            print(len(self.albums),'<<<<<<')
+            print(self.albums,'<<<<<<')
             if len(self.albums) == 0:
                 coords = (40,40)
             elif len(self.albums) == 1:
@@ -548,7 +766,7 @@ class MusicList:
         # '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__',
         # '__weakref__', 'char', 'delta', 'height', 'keycode', 'keysym', 'keysym_num', 'num', 'send_event', 'serial', 'state',
         # 'time', 'type', 'widget', 'width', 'x', 'x_root', 'y', 'y_root']
-        if str(event.widget) == '.!canvas2':
+        if event != '' and str(event.widget) == '.!canvas2':
             self.chosen_music_in_list[list(self.chosen_music_in_list.keys())[0]] = f'{music}'
         else:
             self.chosen_music_in_list = {f'{init_albums.open_album}':f'{music}'}
@@ -593,9 +811,9 @@ class MusicList:
             self.musiclist[f'{music}'] = Canvas(self.canvas,width=int(self.canvas.cget('width'))-30,height=100,bg='grey90')
             self.canvas.create_window(coords[0],coords[1], window=self.musiclist[f'{music}'],tags='music_main_canvas',anchor=NW)
             self.icon_list_id[f'{music}'] =  self.musiclist[f'{music}'].create_image(5,5,image=self.icon_list[f'{music}'],anchor=NW)
-            self.musiclist[f'{music}'].create_text(100,10,text=f'{metadata['name']}',anchor=NW,font='arial 20 bold')
-            self.musiclist[f'{music}'].create_text(100,40, text=f'{metadata['author']}', anchor=NW,font='arial 15')
-            self.musiclist[f'{music}'].create_text(100, 65, text=f'{metadata['genre']}', anchor=NW, font='arial 15 italic')
+            self.musiclist[f'{music}'].create_text(100,10,text=f'{metadata['name'] if not metadata is None else ''}',anchor=NW,font='arial 20 bold')
+            self.musiclist[f'{music}'].create_text(100,40, text=f'{metadata['author'] if 'author' in metadata.keys() else ''}', anchor=NW,font='arial 15')
+            self.musiclist[f'{music}'].create_text(100, 65, text=f'{metadata['genre'] if 'genre' in metadata.keys() else ''}', anchor=NW, font='arial 15 italic')
             self.musiclist[f'{music}'].bind('<Button-1>',self.func_constr_for_select(f'{music}'))
             self.musiclist[f'{music}'].bind('<Button-3>', self.unselected_music)
             self.musiclist[f'{music}'].bind('<Double-Button-1>', self.func_constr_for_chose(f'{music}'))
@@ -783,6 +1001,12 @@ def new_window_add_music():
 def delete_music():
     init_albums.track_list.del_music()
 
+def cut_music():
+    if init_albums.track_list.selected_music is None:
+        showerror('Музыка не выбрана', 'Выберите трек для редактирования')
+        return
+    RedactorAudio(f'albums/{init_albums.open_album}/{init_albums.track_list.selected_music}')
+
 def seek_position_in_progress_bar(event):
     global duration_music
     if int(event.type) == 6:
@@ -819,7 +1043,6 @@ def update_chose_music():
     global is_paused
     global duration_music
     global current_track_list
-    print(list(init_albums.track_list.chosen_music_in_list.keys())[0])
     chosen_music_path = f'albums/{list(init_albums.track_list.chosen_music_in_list.keys())[0]}/{list(init_albums.track_list.chosen_music_in_list.values())[0]}'
     extension = ''
     for i in range(len(chosen_music_path)-1,0,-1):
@@ -832,7 +1055,7 @@ def update_chose_music():
     metadata = get_metadata(chosen_music_path,extension)
     chosen_music.itemconfig(music_name_label,text=metadata['name'])
     chosen_music.itemconfig(album_name_label, text=f'{list(init_albums.track_list.chosen_music_in_list.keys())[0]}')
-    chosen_music.itemconfig(music_author_label, text=metadata['author'])
+    chosen_music.itemconfig(music_author_label, text=metadata['author'] if 'author' in metadata.keys() else '' )
     current_track_list = sorted(listdir(f'albums/{list(init_albums.track_list.chosen_music_in_list.keys())[0]}'))
     audio.stop()
     audio.load_audio(chosen_music_path)
@@ -885,6 +1108,8 @@ album_menu.add_command(label='Удалить выбранный альбом',co
 music_menu = Menu(bg='grey90',tearoff=0)
 music_menu.add_command(label='Добавить трек',command=new_window_add_music,state=DISABLED)
 music_menu.add_command(label='Удалить выбранный трек',command=delete_music,state=DISABLED)
+music_menu.add_separator()
+music_menu.add_command(label='Обрезать выбранный трек',command=cut_music,state=DISABLED)
 menu.add_cascade(label='Альбомы',menu=album_menu)
 menu.add_cascade(label='Треки',menu=music_menu)
 screen.config(menu=menu)
