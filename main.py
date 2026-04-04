@@ -178,7 +178,6 @@ class AddMusic:
         self.path_label['text'] = self.absolut_path if len(self.absolut_path) <= 65 \
             else '...'+self.absolut_path[::-1][:65][::-1]
         self.icon_music = get_metadata_icon(self.absolut_path,self.extansion)
-        print(self.icon_music.width(),self.icon_music.height())
         self.image_canvas.create_image(5,5,image=self.icon_music,anchor=NW,tags = 'image')
         metadata = get_metadata(self.absolut_path,self.extansion)
         if type(metadata) is dict:
@@ -186,10 +185,8 @@ class AddMusic:
                 self.name_track.set(f'{metadata['name']}' if len(f'{metadata['name']}') < 20 else f'{metadata['name']}'[:20])
             if 'author' in metadata.keys():
                 self.author_track.set(metadata['author'] if len(f'{metadata['author']}') < 20 else f'{metadata['author']}'[:20])
-                print(metadata['author'])
             if 'genre' in metadata.keys():
                 self.genre_track.set(metadata['genre'] if len(f'{metadata['genre']}') < 20 else f'{metadata['author']}'[:20])
-                print(metadata['genre'])
 
     def change_icon(self):
         path_to_icon = askopenfilename(filetypes=[('image files', '*.png')])
@@ -213,11 +210,9 @@ class AddMusic:
         self.dismiss()
         if self.name_track.get() is None or self.name_track.get() == '':
             showerror('Ошибка',"Имя трека не может быть пустым")
-            print('Пустое имя файла')
             return
         if self.absolut_path is None or self.absolut_path == '':
             showerror('Ошибка', "Необходимо выбрать файл")
-            print('Пустой путь к файлу')
             return
         init_albums.track_list.add_music(self.name_track.get(),self.extansion,self.absolut_path,self.check_copy.get(),self.changed_icon,self.author_track.get(),self.genre_track.get())
 
@@ -284,7 +279,6 @@ class RedactorAudio:
 
 
         def limit_chars(self,widget,entry_var):
-            print('???',widget.split('.')[-1], entry_var)
             if len(entry_var) > 1 and entry_var[0] == '0':
                 return False
             try:
@@ -335,7 +329,7 @@ class RedactorAudio:
 
             vcmd_start = (root.register(self.limit_chars), '%W' ,'%P')
             self.start_var = DoubleVar(value=0)
-            self.end_var = DoubleVar(value=200)
+            self.end_var = DoubleVar(value=self.to)
             self.start_spin = Spinbox(root,
                                       from_=0,
                                       to=float('inf'),
@@ -443,7 +437,7 @@ class RedactorAudio:
         icon_canvas.place(x=20,y=20)
         self.icon = get_metadata_icon(self.path,extension)
         icon_canvas.create_image(10,10,image=self.icon,anchor=NW,tags='image')
-        self.scale = RedactorAudio.DoubleScale(self.newscreen,130,30,height=20,from_=0,to=200)
+        self.scale = RedactorAudio.DoubleScale(self.newscreen,130,30,height=20,from_=0,to=int(self.duration))
         self.newname = StringVar()
         vcmd = (self.newscreen.register(self.validate_text), '%P')
         self.tkentry = ttk.Entry(self.newscreen,width=20,validate='key',validatecommand=vcmd,textvariable=self.newname,)
@@ -497,7 +491,6 @@ class Albums:
         try:
             mkdir(f'albums/{name}')
         except FileExistsError:
-            print('Ошибка','Такой альбом уже создан')
             showerror('Ошибка','Такой альбом уже создан')
             return
 
@@ -505,7 +498,6 @@ class Albums:
             with open('storage_icon/path_icon_album.json','r') as file:
                 path_icon = json.load(file)
                 path_icon[f'{name}'] = path_image
-                print(path_icon)
             with open('storage_icon/path_icon_album.json', 'w') as file:
                 json.dump(path_icon,file,sort_keys=True)
         except:
@@ -542,7 +534,6 @@ class Albums:
 
 
     def get_track_list(self,_,album):
-        print('получен трек лист')
         self.canvas.delete('opened')
         music_menu.entryconfig('Добавить трек',state=ACTIVE)
         music_menu.entryconfig('Удалить выбранный трек', state=ACTIVE)
@@ -576,7 +567,6 @@ class Albums:
                 print('Обнаружен невалидный альбом')
                 continue
             coords = ()
-            print(self.albums,'<<<<<<')
             if len(self.albums) == 0:
                 coords = (40,40)
             elif len(self.albums) == 1:
@@ -590,18 +580,14 @@ class Albums:
                 self.albums_image[f'{album}'] = ImageTk.PhotoImage(Image.open(str(dict_path_icon_album[album])).resize((90,90)))
             except FileNotFoundError:
                 self.albums_image[f'{album}'] = ImageTk.PhotoImage(Image.open('icons/iconPlayer.png').resize((90,90)))
-                print('Ошибка, файл не найден')
 
-            print(coords,album,self.albums,self.canvas)
             self.albums[album] = self.canvas.create_image(coords[0],coords[1],image=self.albums_image[f'{album}'],anchor=NW,)
             self.albums_coords_size[coords] = album
-            print(self.albums_image[album],album,'<<<')
             temp = Label(self.canvas,text=f'{album[:20]+'...' if len(album) > 20 else album}')
             temp.config(bg='grey90')
             self.canvas.create_window(coords[0],coords[1]+self.albums_image[f'{album}'].height(),anchor=NW,window=temp,tags=[f'{album}',f'label'])
             if not self.open_album is None:
                 for key in self.albums_coords_size:
-                    print(key,self.albums_coords_size[key], "<<<<<<<<<><><><><")
                     if self.open_album == self.albums_coords_size[key]:
                         self.canvas.coords('opened',key[0]-15,key[1]-15,key[0]+105,key[1]+105)
             self.canvas.tag_bind(self.albums[f'{album}'],'<Button-1>',self.alb_func_constr_for_select(album))
@@ -616,7 +602,6 @@ class Albums:
             return
 
         if not f'{name}' in self.albums.keys():
-            print('KeyError:такого альбома нет')
             showerror('KeyError','Такого альбома несуществует или альбом не выбран')
             return
 
@@ -664,7 +649,6 @@ class MusicList:
         self.selected_music = None
         self.chosen_music_in_list = None
         self.canvas.bind('<Button-3>', self.unselected_music)
-        print(self.musiclist)
 
     def add_music(self,name,extensions,absolute_path,copying,new_icon,author,genre):
         if not copying:
@@ -708,7 +692,6 @@ class MusicList:
         if extensions == 'wav':
             temp = wave.WAVE(f'albums/{init_albums.open_album}/{name}.{extensions}')
             if not (new_icon is None):
-                print(temp.keys())
                 if 'APIC:' in temp.keys():
                     del temp['APIC:']
                 with open(new_icon, 'rb') as f:
@@ -746,7 +729,6 @@ class MusicList:
 
     def select_music(self,event,music):
         self.unselected_music()
-        print(event,music,'xxx')
         self.musiclist[f'{music}'].config(bg='pale green')
         self.selected_music = f'{music}'
 
@@ -761,11 +743,6 @@ class MusicList:
         if  not self.chosen_music_in_list is None:
             if list(self.chosen_music_in_list.values())[0] in self.musiclist.keys():
                 self.musiclist[list(self.chosen_music_in_list.values())[0]].delete('opened')
-        #['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__',
-        # '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__',
-        # '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__',
-        # '__weakref__', 'char', 'delta', 'height', 'keycode', 'keysym', 'keysym_num', 'num', 'send_event', 'serial', 'state',
-        # 'time', 'type', 'widget', 'width', 'x', 'x_root', 'y', 'y_root']
         if event != '' and str(event.widget) == '.!canvas2':
             self.chosen_music_in_list[list(self.chosen_music_in_list.keys())[0]] = f'{music}'
         else:
